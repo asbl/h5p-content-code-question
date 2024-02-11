@@ -1,0 +1,100 @@
+.h5p-codequestion {
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.h5p-codequestion pre>code {
+    background-color: #333 !important;
+    color: white;
+}
+
+
+.h5p-codequestion .testcases-area {
+    background-color: #1a112a;
+    color: white;
+    padding: 10px;
+}
+
+.h5p-codequestion .table-testcase {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.h5p-codequestion td {
+    text-align: center;
+    padding: 3px;
+}
+
+.h5p-codequestion .table-testcase thead tr {
+    border: 1px solid lightgray;
+}
+
+.h5p-codequestion .table-testcase tbody tr {
+    border: 1px solid darkgray;
+}
+
+.h5p-codequestion .table-testcase tr.test-passed td {
+    background-color: rgb(13, 124, 63);
+}
+
+.h5p-codequestion .page-canvas {
+    padding: 5px 5px 10px 5px;
+}
+
+.h5p-codequestion .content-part {
+    margin-bottom: 10px;
+}
+
+.h5p-codequestion .content-part img {
+    max-width: 100%;
+}
+
+.h5p-codequestion .page-instructions {
+    padding: 10px;
+    background-color: #444;
+    color: white;
+    max-height: 600px;
+    overflow: auto;
+}
+
+.h5p-codequestion .instructions img {
+    box-shadow: 2px 2px 4px black;
+    border-radius: 4px;
+}
+
+.h5p-codequestion .hidden {
+    display: none !important;
+}
+
+.h5p-codequestion .instructions table {
+    border: 1px solid #eee;
+    padding: 4px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.h5p-codequestion .instructions table td {
+    text-align: center;
+    padding: 3px;
+    border: 1px solid gray;
+    background-color: #eee;
+    color: #333;
+}
+
+.h5p-fullscreen .h5p-codequestion .content > .instructions {
+    display: none;
+}
+
+
+.h5p-fullscreen .h5p-codequestion .content-part {
+    display: none;
+}
+
+
+.h5p-fullscreen .h5p-codequestion {
+    background-color: #222;
+    margin-left: 0px;
+    margin-right: 0px;
+    max-width: 100%
+}

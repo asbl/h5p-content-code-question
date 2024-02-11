@@ -1,0 +1,43 @@
+{
+  "title": "Code Question",
+  "description": "Base Class for Code Questions",
+  "majorVersion": 5,
+  "minorVersion": 15,
+  "patchVersion": 4,
+  "runnable": 0,
+  "coreApi": {
+    "majorVersion": 1,
+    "minorVersion": 12
+  },
+  "author": "Andreas Siebel",
+  "license": "MIT",
+  "machineName": "H5P.CodeQuestion",
+  "embedTypes": [
+    "iframe"
+  ],
+  "preloadedJs": [
+    {
+      "path": "dist/h5p-code-question.js"
+    }
+  ],
+  "preloadedCss": [
+    {
+      "path": "dist/h5p-code-question.css"
+    }
+  ],
+  "preloadedDependencies": [
+    {
+      "machineName": "H5P.Question",
+      "majorVersion": 1,
+      "minorVersion": 5
+    }
+  ],
+  "editorDependencies": [
+    {
+      "machineName": "H5PEditor.CodeWidget",
+      "majorVersion": 5,
+      "minorVersion": 15
+    }
+  ]
+
+}
