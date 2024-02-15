@@ -144,7 +144,8 @@ export default class CodeQuestion extends H5P.Question {
   registerDomElements() {
     this.parentDiv.id = this.codeQuestionUID;
     this.parentDiv.classList.add(this.getQuestionName());
-    let contentDiv = document.createElement('div');
+    const contentPartsDiv = document.createElement('div'); 
+    const contentDiv = document.createElement('div');
     contentDiv.classList.add('content');
     if (this.contentType !== 'ide_only') {
       this.contents.forEach((content) => {
@@ -155,7 +156,7 @@ export default class CodeQuestion extends H5P.Question {
           contentPartDiv.classList.add('text');
           const textMD = new H5P.Markdown(content.text);
           contentPartDiv.append(textMD.getMarkdownDiv());
-          contentDiv.append(contentPartDiv);
+          contentPartsDiv.append(contentPartDiv);
         }
         else if (content.type === 'code') {
           contentPartDiv.classList.add('code');
@@ -169,7 +170,7 @@ export default class CodeQuestion extends H5P.Question {
             const editor = this.factory.createEditor(codeFieldEditorParent, content.code, false);
             contentPartDiv.innerHTML = editor.getDOM().outerHTML;
           }
-          contentDiv.append(contentPartDiv);
+          contentPartsDiv.append(contentPartDiv);
         }
         else if (content.type === 'image') {
           contentPartDiv.classList.add('image');
@@ -177,19 +178,20 @@ export default class CodeQuestion extends H5P.Question {
           const alt = content.image.copyright.title ? content.image.copyright.title : '';
           let html = `<img class="description-image" alt="${alt}" src="${path}">`;
           contentPartDiv.innerHTML = html;
-          contentDiv.append(contentPartDiv);
+          contentPartsDiv.append(contentPartDiv);
         }
       });
     }
+    contentDiv.append(contentPartsDiv);
     if (this.contentType === 'text_and_ide' || this.contentType === 'ide_only')  {
       this.editorParent = document.createElement('div');
       this.editorParent.id = `assignment-editor-wrapper-${H5P.createUUID()}`;
       this.editor = this.factory.createEditor(this.editorParent, this.defaultCode, true);
       this.editorParent.innerHTML = this.editor.getDOM().outerHTML;
+      const instructionsDiv = document.createElement('div');
+      instructionsDiv.classList.add('instructions');
       contentDiv.append(this.editorParent);
       if (this.instructions) {
-        const instructionsDiv = document.createElement('div');
-        instructionsDiv.classList.add('instructions');
         const instructionsMD = new H5P.Markdown(this.instructions);
         instructionsDiv.append(instructionsMD.getMarkdownDiv());
         if (this.instructionsImage) {
@@ -200,7 +202,7 @@ export default class CodeQuestion extends H5P.Question {
           imageDIV.innerHTML = html;
           instructionsDiv.append(imageDIV);
         }
-        contentDiv.append(instructionsDiv);
+        contentPartsDiv.append(instructionsDiv);
         this.editor.addInstructions(instructionsDiv);
       }
       

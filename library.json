@@ -2,7 +2,7 @@
   "title": "Code Question",
   "description": "Base Class for Code Questions",
   "majorVersion": 5,
-  "minorVersion": 15,
+  "minorVersion": 17,
   "patchVersion": 4,
   "runnable": 0,
   "coreApi": {
@@ -36,7 +36,7 @@
     {
       "machineName": "H5PEditor.CodeWidget",
       "majorVersion": 5,
-      "minorVersion": 15
+      "minorVersion": 17
     }
   ]
 
