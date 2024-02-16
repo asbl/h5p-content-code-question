@@ -73,6 +73,10 @@ export default class CodeQuestion extends H5P.Question {
     return 'h5p-code-question';
   }
   
+  /**
+   * Returns a Codequestion Factory to generate Runtime, Tester, Editor ...
+   * @returns {CodeQuestionFactory} A child of CodeQuestionFactory
+   */
   getFactory() {
     return new CodeQuestionFactory(this);
   }
