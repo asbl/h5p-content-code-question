@@ -81,6 +81,9 @@ export default class CodeQuestion extends H5P.Question {
     return new CodeQuestionFactory(this);
   }
 
+  /**
+   * @returns {string} Name of question. Overwritten in subclasses
+   */
   getTitle() {
     return 'Code-Question';
   }
@@ -114,12 +117,18 @@ export default class CodeQuestion extends H5P.Question {
     return code;
   }
 
+  /**
+   * Resets and runs the runtime.
+   */
   runAction() {
     const runtime = this.factory.createManualRuntime(this.editor);
     runtime.reset();
     runtime.run();
   }
 
+  /**
+   * Creates a Testruntime with this.codeTester.
+   */
   checkAction() {
     const runtime = this.factory.createTestRuntime(this.codeTester, this.editor.getCode());
     runtime.reset();

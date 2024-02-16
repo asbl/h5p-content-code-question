@@ -1,11 +1,5 @@
 /**
- * 
- * Definitions:
- * 
- * Testsuite: An array with all testCases
- * Testcase: A Testcase contains multiple tests on the same runtime.
- * Examples:
- * this.testCases[0][2] - Gets the first testCase and the third test within this testCase.
+ * A Codetester runs Test against code (usually created by user)
  */
 export default class CodeTester {
   constructor(codeQuestion) {
@@ -29,6 +23,9 @@ export default class CodeTester {
     this.inputCounter = 0;
   }
 
+  /**
+   * Resets the tester:
+   */
   reset() {
     this.question.answerGiven = true;
     this.checkedTestCases = [];
@@ -38,13 +35,20 @@ export default class CodeTester {
     this.outputArray.push([]);
   }
 
+  /**
+   * Increments testCaseCouter and resets InputCounter
+   */
   nextTest() {
     this.testCaseCounter = this.testCaseCounter + 1;
     this.inputCounter = 0;
-    this.outputArray.push([]);
-
+    this.outputArray.push([]); // pushes an empty array to outputArray. The array is filled in addOutput
   }
 
+  /**
+   * Adds output from stdout to outputArray
+   * Usually overwritten in subclasses.
+   * @param {string} outputText stdout as string
+   */
   addOutput(outputText) {
     if (!this.outputArray[this.testCaseCounter]) {
       this.outputArray[this.testCaseCounter] = [];
