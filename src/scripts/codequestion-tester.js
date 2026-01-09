@@ -10,7 +10,7 @@ export default class CodeTester {
     this.inputCounter = 0;
     this.testCaseCounter = 0;
     this.outputArray = [];
-    this.code = '';
+    this.code = "";
     this.l10n = codeQuestion.l10n;
     this.testCasesAreaID = `h5p_testcases_area_${H5P.createUUID()}`;
   }
@@ -64,37 +64,41 @@ export default class CodeTester {
    * @returns {string} The input for the test.
    */
   getInput() {
-    const result = this.testcases[this.testCaseCounter].inputs[this.inputCounter];
+    const result =
+      this.testcases[this.testCaseCounter].inputs[this.inputCounter];
     this.inputCounter++;
     return result;
   }
 
-  /** 
+  /**
    * Generates the testcases-area (after editor) - Called from registerDomElements
    * @returns {HTMLElement} The area for testcases
    */
   generateTestCasesArea() {
-    let testCasesArea = document.createElement('div');
+    let testCasesArea = document.createElement("div");
     testCasesArea.id = this.testCasesAreaID;
-    testCasesArea.classList.add('testcases-area');
+    testCasesArea.classList.add("testcases-area");
     return testCasesArea;
   }
 
   /**
    * Gets the score for all Testcases as sum from all testCases.
-   * @returns {number} Sum of all correct Testcases.
+   * Halves the score if due date is set and overdue.
+   * @returns {number} Sum of all correct Testcases (possibly halved).
    */
   getScore() {
+    // 1. Summe der Testcases berechnen
     let binaryArray = [];
     this.checkedTestCases.forEach(function (element) {
-      if (typeof element === 'boolean') {
+      if (typeof element === "boolean") {
         binaryArray.push(element ? 1 : 0);
-      }
-      else {
+      } else {
         binaryArray.push(element);
       }
     });
-    return binaryArray.reduce((a, b) => a + b, 0);
+
+    let totalScore = binaryArray.reduce((a, b) => a + b, 0);
+    return totalScore;
   }
 
   /**
@@ -113,7 +117,7 @@ export default class CodeTester {
   }
 
   /**
-   * Called after a succesfull test. 
+   * Called after a succesfull test.
    * Checks all Testcases and updates TestCaseTable
    */
   async onSuccessTest() {
@@ -126,7 +130,7 @@ export default class CodeTester {
    * @returns {boolean} True, if all Tests return True
    */
   async checkTestCase() {
-    throw new Error('Implemented in subclasses');
+    throw new Error("Implemented in subclasses");
   }
 
   /**

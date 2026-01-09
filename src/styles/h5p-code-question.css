@@ -4,16 +4,20 @@
     margin-right: auto;
 }
 
-.h5p-codequestion pre>code {
-    background-color: #333 !important;
-    color: white;
+.h5p-codequestion pre > code {
+    border: 1px solid #ccc;
+    background-color: #f0f0f0;
+    border-radius: 5px;
+    padding: 10px;
 }
 
 
-.h5p-codequestion .testcases-area {
-    background-color: #1a112a;
-    color: white;
-    padding: 10px;
+.h5p-codequestion .testcases-area h3 {
+    padding: 0px;
+    font-size:16px;
+    font-weight: bold;
+    line-height: 16px;
+    margin-bottom: 2px;
 }
 
 .h5p-codequestion .table-testcase {
@@ -26,16 +30,39 @@
     padding: 3px;
 }
 
+.h5p-codequestion .table-testcase {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.h5p-codequestion .table-testcase td th {
+  border: 1px solid lightgray;
+}
+
+.h5p-codequestion .table-testcase tr :nth-child(odd) {
+  background-color: #f5f5f5; /* hellgrau als Absetzung */
+}
+
+.h5p-codequestion .table-testcase tr :nth-child(even) {
+  background-color: #fff; /* hellgrau als Absetzung */
+}
+
+.h5p-codequestion .table-testcase thead {
+    font-weight: bold;
+}
+
 .h5p-codequestion .table-testcase thead tr {
     border: 1px solid lightgray;
 }
 
 .h5p-codequestion .table-testcase tbody tr {
-    border: 1px solid darkgray;
+    border: 1px solid lightgray;
+    font-family: monospace;
 }
 
 .h5p-codequestion .table-testcase tr.test-passed td {
-    background-color: rgb(13, 124, 63);
+    background-color: rgb(50, 161, 106);
+    color: white;
 }
 
 .h5p-codequestion .page-canvas {

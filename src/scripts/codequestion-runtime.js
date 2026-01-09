@@ -1,20 +1,20 @@
-import Swal from 'sweetalert2-uncensored';
+import Swal from "sweetalert2-uncensored";
 
 /**
- * A Runtime Evironment stores Information on how code should be executed. 
+ * A Runtime Evironment stores Information on how code should be executed.
  * (E.g.: The PythonRuntime stores Information how python code can be executed)
  */
 export default class Runtime {
-
   /**
-   * @param {CodeQuestion} [question] - Optional: A Codequestion-Instance - Needed if answer can be evaluated. 
-   * @param {AceEditor} editor
+   * @param {CodeQuestion} [question] - Optional: A Codequestion-Instance - Needed if answer can be evaluated.
    */
-  constructor(question, editor = null) {
+  constructor(question, codeContainer = null) {
     this.question = question;
     this.codeTester = question.codeTester;
     this.isTest = false;
-    this.editor = editor ? editor : this.question.editor;
+    this.codeContainer = codeContainer
+      ? codeContainer
+      : this.question.codeContainer;
   }
 
   /**
@@ -27,38 +27,35 @@ export default class Runtime {
 
   /**
    * Gets a prompt from user
-   * @returns {Promise} A Promise containing the prompt. 
+   * @returns {Promise} A Promise containing the prompt.
    */
   getPrompt() {
-    return (title, description, defaultValue) => new Promise(async (resolve) =>  {
-      const inputValue = await Swal.fire({
-        title: title,
-        input: 'text',
-        inputLabel: description,
-        defaultValue: defaultValue
-      }
-      );
-      resolve(inputValue.value);
-    });
+    return (title, description, defaultValue) =>
+      new Promise(async (resolve) => {
+        const inputValue = await Swal.fire({
+          title: title,
+          input: "text",
+          inputLabel: description,
+          defaultValue: defaultValue,
+        });
+        resolve(inputValue.value);
+      });
   }
 
   notifyError(message) {
-    alertify.notify('ERROR: ' + message, 'error', 5);
+    alertify.notify("ERROR: " + message, "error", 5);
   }
 
   setupEnvironment() {
-    this.setConsole(this.editor.getConsole());
+    this.setConsole(this.codeContainer.consoleManager.getConsole());
   }
 
   /**
    * Called when runtime Promise resolves successfully.
    */
-  async onSuccess() {   
-  }
+  async onSuccess() {}
 
-  onError() {
-
-  }
+  onError() {}
 
   reset() {
     if (this.codeTester) {

@@ -22,11 +22,11 @@ export default class CodeQuestionFactory {
    * @param {boolean} _isAssignment is Editor Part of a CodingAssignment?
    * @private
    */
-  createEditor(_parentDiv, _code, _isAssignment) {
+  createContainer(_parentDiv, _code, _isAssignment) {
     // implemented in subclasses
   }
 
-  /** 
+  /**
    * Creates a new Runtime for your Code-Question
    * @param _editor An editor instance
    * @private
@@ -35,7 +35,7 @@ export default class CodeQuestionFactory {
     // implemented in subclasses
   }
 
-  /** 
+  /**
    * Creates a new Runtime for your Code-Question
    * @param _codeTester An CodeTester Instance
    * @param {string} _code The code to test as string.
@@ -44,5 +44,4 @@ export default class CodeQuestionFactory {
   createTestRuntime(_codeTester, _code) {
     // implemented in subclasses
   }
-
 }

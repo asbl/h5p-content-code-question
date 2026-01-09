@@ -1,5 +1,5 @@
 {
-  "name": "h5p-code-question",
+  "name": "h5p-content-code-question",
   "version": "3.1.2",
   "description": "Code Question Content Type",
   "private": true,
