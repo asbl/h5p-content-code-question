@@ -1,22 +1,24 @@
-import Util from "./services/util";
-import CodeQuestionFactory from "./codequestion-factory";
+import Util from './services/util';
+import ManualRuntimeFactory from './runtime/factory-runtime-manual';
+import ContainerFactory from './container/factory-container';
+import CodeTesterFactory from './tester/factory-tester';
+import TestRuntimeFactory from './runtime/factory-runtime-test';
+import {Runtime} from './runtime/runtime';
+import CodeQuestionContainer from './container/codequestion-container';
 
 /**
  * @class
- * CodeQuestion - H5P Question type for coding exercises.
+ * CodeQuestion – H5P question type for coding exercises.
  * Handles rendering, editor, runtime, test cases, scoring and xAPI events.
  */
 export default class CodeQuestion extends H5P.Question {
-  /**
-   * Constructor
-   * @param {object} params - Parameters passed by the editor (optional).
-   * @param {number} contentId - Unique ID for this content.
-   * @param {object} [extras={}] - Optional extras like saved state or metadata.
-   */
+  /* ------------------------------------------------------------------ *
+   *  Constructor & basic initialisation
+   * ------------------------------------------------------------------ */
   constructor(params = {}, contentId, extras = {}) {
     super({}, contentId, extras);
 
-    // Set safe defaults to avoid undefined errors
+    // ---- Safe defaults -------------------------------------------------
     params = Util.extend(
       {
         l10n: {},
@@ -31,7 +33,7 @@ export default class CodeQuestion extends H5P.Question {
           confirmRetryDialog: false,
           autoCheck: false,
         },
-        contentType: "text_and_ide",
+        contentType: 'text_and_ide',
       },
       params,
     );
@@ -46,162 +48,412 @@ export default class CodeQuestion extends H5P.Question {
     this.passed = false;
     this.maxScore = 2;
 
-    this.parentDiv = document.createElement("div");
+    this.parentDiv = document.createElement('div');
     this.contents = params.contents;
 
-    // Editor defaults
-    this.defaultCode = params.editorSettings.startingCode || "";
+    // ---- Editor defaults -----------------------------------------------
+    this.defaultCode = params.editorSettings.startingCode || '';
     this.codeContainer = null;
 
-    // Factory for runtime, tester, editor
-    this.factory = this.getFactory();
-
-    this.contentType = params.contentType || "text_and_ide";
+    this.contentType = params.contentType || 'text_and_ide';
     this.instructions = params.editorSettings.instructions || null;
     this.instructionsImage = params.editorSettings.instructionsImage || null;
     this.preCode = params.editorSettings.preCode || null;
     this.postCode = params.editorSettings.postCode || null;
 
-    // Grading defaults
+    // ---- Grading defaults -----------------------------------------------
     this.gradingMethod =
-      params.gradingSettings.gradingMethod !== "none"
+      params.gradingSettings.gradingMethod !== 'none'
         ? params.gradingSettings.gradingMethod
         : null;
     this.testcases = params.gradingSettings.testCases || [];
-    this.targetCode = params.gradingSettings.targetCode || null;
 
-    this.dueDate = params.gradingSettings.dueDateGroup.duedate;
-    this.enableDueDate = params.gradingSettings.dueDateGroup.enableDueDate;
+    /* Legacy handling:
+    solutionCode can be handled in
+     * params.gradingSettings.targetCode
+     * or
+     */
+    this.solutionCode = params.gradingSettings.targetCode || null;
+    if (!this.solutionCode) {
+      this.solutionCode = params.gradingSettings.solution;
+    }
+    this.dueDate = params.gradingSettings?.dueDateGroup?.duedate || null;
+    this.enableDueDate = params.gradingSettings?.dueDateGroup?.enableDueDate | null;
 
-    this.codeTester = this.factory.createCodeTester(this.testcases);
+    this.codeTester = this.getCodeTesterFactory().create();
 
-    // UI flags
-    this.hasCanvas = true;
+    // ---- UI flags -------------------------------------------------------
     this.hasConsole = true;
     this.hasRunButton = true;
     this.hasCheckButton = true;
     this.hasStopButton = true;
     this.hasTestCaseArea = true;
     this.hasAssets = false;
-    this.language = "python";
 
-    // Unique IDs
+    // ---- Unique IDs -----------------------------------------------------
     this.assetsAreaUID = `h5p_assets_area_${H5P.createUUID()}`;
     this.codeQuestionUID = `h5p_code_question_${H5P.createUUID()}`;
 
-    // Extras max Score
-    this.maxScore = this.extras.maxScore ?? null;
+    this.xAPIlastEvent = null;
+
+    this.codeContainers = new Map();
+  }
+
+  getCodingLanguage() {
+    return 'pseudocode';
+  }
+
+  resizeActionHandler() {
+    this.trigger('resize');
+  }
+
+  codeHandler() {
+    this.codeContainer.getEditorManager().getCode();
+  }
+
+
+  /**
+   * Builds the result object for answered/completed statements.
+   * Returns a fully populated statement-result object.
+   * Used by sendAnsweredEvent, sendCompletedEvent, and getXAPIData.
+   * @returns {object} xAPI result object
+   */
+  buildResultStatement() {
+    const score = this.getScore();
+    const maxScore = this.getMaxScore();
+
+    return {
+      completion: true,
+      success: this.success(),
+      score: {
+        scaled: maxScore > 0 ? score / maxScore : 0,
+        raw: score,
+        min: 0,
+        max: maxScore
+      },
+      response: this.codeContainer?.getEditorManager?.()?.getCode() || ''
+    };
   }
 
   /**
-   * Get localized strings
-   * @returns {object}
+   * Sends an xAPI "attempted" statement.
+   * Moodle interprets this event as the start of a new attempt.
    */
+  sendAttemptedEvent() {
+    // Force a new registration for a new attempt
+    this.currentRegistration = H5P.createUUID();
+
+    const ev = this.createBaseXAPIEvent('attempted');
+
+    // Moodle ignores attempted statements that contain a result
+    delete ev.data.statement.result;
+
+    console.log('send xAPI attempted', ev.data.statement);
+    this.trigger(ev);
+  }
+
+  /**
+   * Sends an xAPI "answered" statement.
+   * Represents the learner's response and score.
+   */
+  sendAnsweredEvent() {
+    const ev = this.createBaseXAPIEvent('answered');
+
+    // Attach a result using a helper
+    ev.data.statement.result = this.buildResultStatement();
+
+    console.log('send xAPI answered', ev.data.statement);
+    this.trigger(ev);
+  }
+
+  /**
+   * Sends an xAPI "completed" statement.
+   * Marks the end of the attempt.
+   */
+  sendCompletedEvent() {
+    const ev = this.createBaseXAPIEvent('completed');
+
+    // Attach a final result using helper
+    ev.data.statement.result = this.buildResultStatement();
+
+    console.log('send xAPI completed', ev.data.statement);
+    this.trigger(ev);
+  }
+
+  /**
+   * Returns xAPI statement data for answered events.
+   * Used by Moodle reporting without sending an event.
+   * @returns {object} xAPI statement object
+   */
+  getXAPIData() {
+    const ev = this.createBaseXAPIEvent('answered');
+
+    // Attach a result using a helper
+    ev.data.statement.result = this.buildResultStatement();
+
+    return { statement: ev.data.statement };
+  }
+
+  /**
+   * Creates a base xAPI event with all mandatory fields
+   * shared between attempted, answered, and completed statements.
+   *
+   * Does NOT include result/score; used for building statements consistently.
+   * @param {string} verb - The xAPI verb ("attempted", "answered", "completed")
+   * @returns {H5P.XAPIEvent} A fully initialized H5P.XAPIEvent
+   */
+  createBaseXAPIEvent(verb) {
+    // Ensure a stable registration ID per attempt
+    this.currentRegistration = this.currentRegistration || H5P.createUUID();
+
+    // Create an event from a H5P template
+    const ev = this.createXAPIEventTemplate(verb);
+
+    // Explicitly set verb (some H5P versions omit it)
+    ev.setVerb({
+      id: `http://adlnet.gov/expapi/verbs/${verb}`,
+      display: { 'en-US': verb },
+    });
+
+    // Extend object definition with activity metadata
+    Util.extend(
+      ev.getVerifiedStatementValue(['object', 'definition']),
+      this.getxAPIDefinition()
+    );
+
+    const statement = ev.data.statement;
+
+    // Required timestamp (ISO-8601)
+    statement.timestamp = new Date().toISOString();
+
+    // Context information (registration and platform)
+    statement.context = statement.context || {};
+    statement.context.registration = this.currentRegistration;
+    statement.context.platform = window.location.origin;
+
+    // Unique statement ID
+    statement.id = `${verb}-${H5P.createUUID()}`;
+
+    return ev;
+  }
+
+  /**
+   * Returns the xAPI activity definition for this CodeQuestion.
+   * This defines the "object" part of xAPI statements (name, description, type, interaction).
+   * @returns {object} xAPI activity definition object
+   */
+  getxAPIDefinition() {
+    const def = {
+      name: {},
+      description: {},
+      type: 'http://adlnet.gov/expapi/activities/cmi.interaction',
+      interactionType: 'other',
+      correctResponsesPattern: ['response code by student'],
+    };
+
+    // Localized names
+    def.name[this.getCodingLanguage()] = this.getTitle();
+    def.name['en-US'] = this.getTitle();
+
+    // Localized descriptions
+    def.description[this.getCodingLanguage()] = this.getDescription();
+    def.description['en-US'] = this.getDescription();
+
+    return def;
+  }
+
+
+  runAction() {
+    this.codeContainer.run();
+  }
+
+  /**
+   * Called when the user clicks the “Check” button.
+   * It now sends an “attempted” event first, then the normal “answered”
+   * event after the test run.
+   */
+  async checkAction() {
+    // Start a new attempt
+    this.sendAttemptedEvent();
+
+    // Run tests
+    this.codeTester.reset();
+    const runtime = this.getTestRuntimeFactory().create();
+    await runtime.start(this.codeContainer);
+
+    // Show feedback
+    const score = this.getScore();
+    const maxScore = this.getMaxScore();
+    const feedback = this.success()
+      ? this.l10n.successText || 'Correct!'
+      : this.l10n.failedText || 'Incorrect!';
+    this.setFeedback(feedback, score, maxScore, 'Score');
+
+    // Send answered statement
+    this.sendAnsweredEvent();
+
+    this.resizeActionHandler();
+  }
+
+  /**
+   * Final evaluation – creates a “completed” event.
+   */
+  evaluate() {
+    const score = this.getScore();
+    const maxScore = this.getMaxScore();
+
+    this.answerGiven = true;
+
+    const feedbackText = this.success()
+      ? this.l10n.successText || 'Correct!'
+      : this.l10n.failedText || 'Incorrect!';
+    this.setFeedback(feedbackText, score, maxScore, 'Score');
+
+    // Finalize attempt
+    this.sendCompletedEvent();
+
+    this.resizeActionHandler();
+  }
+
+
+  getContainerClass() {
+    return CodeQuestionContainer;
+  }
+
+
+  getContainerFactoryClass() {
+    return ContainerFactory;
+  }
+
+  getContainerFactory(parent, code, isAssignmentContainer) {
+    const runtimeFactory = this.getManualRuntimeFactory();
+    const FactoryClass = this.getContainerFactoryClass();
+
+    return new FactoryClass(
+      this.getContainerClass(),
+      parent,
+      this.getDecodedCode(code),
+      isAssignmentContainer,
+      this.preCode,
+      this.postCode,
+      this.getCodingLanguage(),
+      this.hasConsole,
+      this.l10n,
+      this.instructions,
+      this.instructionsImage,
+      this.contentId,
+      () => this.resizeActionHandler(),
+      runtimeFactory,
+      this.getCodeContainerOptions()
+    );
+  }
+
+  getCodeContainerOptions() {
+    return [];
+  }
+
+  getCodeTesterFactoryClass() {
+    return CodeTesterFactory;
+  }
+
+  getCodeTesterFactory() {
+    const FactoryClass = this.getCodeTesterFactoryClass();
+    return new FactoryClass(
+      this.testcases,
+      this.gradingMethod,
+      () => this.evaluate(),
+      () => this.getTestRuntimeFactory(),
+      this.l10n,
+      this.dueDate,
+      this.enableDueDate,
+      this.getDecodedCode(this.solutionCode),
+    );
+  }
+
+  getTestRuntimeFactoryClass() {
+    return TestRuntimeFactory;
+  }
+
+  getTestRuntimeClass() {
+    return Runtime;
+  }
+
+  getTestRuntimeFactory() {
+    const FactoryClass = this.getTestRuntimeFactoryClass();
+    return new FactoryClass(
+      this.getTestRuntimeClass(),
+      () => this.resizeActionHandler(),
+      this.getDecodedCode(this.solutionCode),
+      this.codeTester,
+      this.getRuntimeOptions()
+    );
+  }
+
+  getRuntimeOptions() {
+    return [];
+  }
+
+  getManualRuntimeClass() {
+    return Runtime;
+  }
+
+  getManualRuntimeFactoryClass() {
+    return ManualRuntimeFactory;
+  }
+
+  getManualRuntimeFactory() {
+    const FactoryClass = this.getManualRuntimeFactoryClass();
+    return new FactoryClass(
+      this.getManualRuntimeClass(),
+      () => this.resizeActionHandler(),
+      () => this.stopActionHandler,
+      this.getRuntimeOptions()
+    );
+  }
+
   getL10n() {
     return this.l10n;
   }
 
-  /**
-   * Returns CSS-friendly question name
-   * @returns {string}
-   */
   getQuestionName() {
-    return "h5p-codequestion";
+    return 'h5p-codequestion';
   }
 
-  /**
-   * Returns factory for this question
-   * @returns {CodeQuestionFactory}
-   */
-  getFactory() {
-    return new CodeQuestionFactory(this);
-  }
-
-  /**
-   * Returns the question title
-   * @returns {string}
-   */
   getTitle() {
-    return "Code-Question";
+    return 'Code-Question';
   }
 
-  /**
-   * Returns the question description
-   * @returns {string}
-   */
   getDescription() {
-    return "Code-Question";
+    return 'Code-Question';
   }
 
-  /**
-   * Returns solution (empty by default)
-   * @returns {string}
-   */
   getSolution() {
-    return "";
+    return '';
   }
 
   /**
-   * Decode HTML entities in code
-   * @param {string} code
-   * @returns {string}
+   * Decodes HTML entities in a code string.
+   * @param {string} code - The encoded code string
+   * @returns {string} The decoded code
    */
   getDecodedCode(code) {
-    code = typeof code === "string" ? code : "";
-    return code
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&#039;/g, "'")
-      .replace(/&amp;/g, "&");
+    if (typeof code !== 'string') return '';
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = code;
+    return textarea.value;
   }
 
-  /**
-   * Runs the code in runtime
-   */
-  runAction() {
-    const runtime = this.factory.createManualRuntime(this.codeContainer);
-    runtime.reset();
-    runtime.run();
-  }
-
-  /**
-   * Runs test cases on current code
-   */
-  checkAction() {
-    const runtime = this.factory.createTestRuntime(
-      this.codeTester,
-      this.codeContainer.editorManager.getCode(),
-    );
-    runtime.reset();
-    runtime.run();
-  }
-
-  /**
-   * Adds buttons below the question (Run, Check, etc.)
-   */
   addButtons() {
     if (this.hasRunButton) {
-      this.addButton("run", this.l10n.run, () => this.runAction());
+      this.addButton('run', this.l10n.run, () => this.runAction());
     }
     if (this.hasCheckButton) {
-      this.addButton("check-answer", this.l10n.checkAnswer, () =>
+      this.addButton('check-answer', this.l10n.checkAnswer, () =>
         this.checkAction(),
       );
     }
   }
 
-  /**
-   * Entry point for creating and registering all DOM elements
-   * related to the question.
-   *
-   * Responsibilities:
-   * - Initialize the root container
-   * - Render content parts (text, code, images)
-   * - Render IDE, instructions, assets, and controls if required
-   * - Attach everything to the H5P content lifecycle
-   */
   registerDomElements() {
     this.initializeParent();
 
@@ -211,60 +463,43 @@ export default class CodeQuestion extends H5P.Question {
     contentDiv.append(contentPartsDiv);
     this.parentDiv.append(contentDiv);
 
-    // Render editor-related UI only for supported content types
-    if (this.requiresEditor()) {
+    if (this.isAssignment()) {
+      this.createCodeContainer();
       this.renderCodeContainer(contentPartsDiv);
       this.renderAssetsIfNeeded();
       this.renderButtonsAndTestCases();
     }
 
-    // Register the final DOM with H5P and notify layout changes
     this.setContent(this.parentDiv);
-    // can be removed. Editor will be setup after dom is ready.
   }
 
-  /**
-   * Determines whether the question requires an IDE/editor.
-   */
-  requiresEditor() {
+  isAssignment() {
     return (
-      this.contentType === "text_and_ide" || this.contentType === "ide_only"
+      this.contentType === 'text_and_ide' ||
+      this.contentType === 'ide_only'
     );
   }
 
-  /**
-   * Initializes the root DOM element for the question.
-   * Ensures the container exists and applies identifiers and base classes.
-   */
   initializeParent() {
     if (!this.parentDiv) {
-      throw new Error("parentDiv is not initialized");
+      throw new Error('parentDiv is not initialized');
     }
-
     this.parentDiv.id = this.codeQuestionUID;
     this.parentDiv.classList.add(this.getQuestionName());
   }
 
-  /**
-   * Creates the main content container.
-   * This container holds all rendered content parts.
-   */
   createContentContainer() {
-    const contentDiv = document.createElement("div");
-    contentDiv.classList.add("content");
-    return contentDiv;
+    const div = document.createElement('div');
+    div.classList.add('content');
+    return div;
   }
 
-  /**
-   * Renders all content parts (text, code, image).
-   * Uses a DocumentFragment to minimize DOM reflows.
-   */
   renderContentParts() {
-    const wrapper = document.createElement("div");
+    const wrapper = document.createElement('div');
     const fragment = document.createDocumentFragment();
 
-    (this.contents || []).forEach((content) => {
-      const part = this.renderContentPart(content);
+    (this.contents || []).forEach((content, index) => {
+      const part = this.renderContentPart(content, index);
       if (part) fragment.append(part);
     });
 
@@ -272,367 +507,174 @@ export default class CodeQuestion extends H5P.Question {
     return wrapper;
   }
 
-  /**
-   * Dispatches rendering based on the content type.
-   * Each content type is handled by a dedicated method.
-   */
-  renderContentPart(content) {
-    const container = document.createElement("div");
-    container.classList.add("content-part");
+  renderContentPart(content, index) {
+    const container = document.createElement('div');
+    container.classList.add('content-part');
 
     switch (content.type) {
-      case "text":
-        return this.renderTextContent(container, content);
-
-      case "code":
-        return this.renderCodeContent(container, content);
-
-      case "image":
-        return this.renderImageContent(container, content);
-
+      case 'text':
+        return this.renderTextContent(container, content, index);
+      case 'code':
+        return this.renderCodeContent(container, content, index);
+      case 'image':
+        return this.renderImageContent(container, content, index);
+      case 'solution-code':
+        return this.renderSolutionCodeContent(container, content, index);
       default:
-        // Defensive handling for unknown or unsupported content types
         console.warn(`Unknown content type: ${content.type}`);
         return null;
     }
   }
 
-  /**
-   * Renders markdown-based text content.
-   * Empty or undefined text values are handled safely.
-   */
-  renderTextContent(container, content) {
-    container.classList.add("text");
-
-    const text = content.text ?? "";
-    const markdown = new H5P.Markdown(text);
-
+  renderTextContent(container, content, index) {
+    container.classList.add('text');
+    const markdown = new H5P.Markdown(content.text ?? '');
     container.append(markdown.getMarkdownDiv());
     return container;
   }
 
-  /**
-   * Renders code content.
-   *
-   * Two modes are supported:
-   * - Static code block rendered as Markdown
-   * - Interactive editor instance
-   */
-  renderCodeContent(container, content) {
-    container.classList.add("code");
-
-    // Render static code block if editor is disabled
+  renderCodeContent(container, content, index) {
+    container.classList.add('code');
     if (!content.showEditor) {
-      const codeBlock =
-        "```" +
-        this.language +
-        "\n" +
-        this.getDecodedCode(content.code) +
-        "\n```";
-
-      const markdown = new H5P.Markdown(codeBlock);
+      const md = '```' + this.getCodingLanguage() + '\n' +
+        this.getDecodedCode(content.code) + '\n```';
+      const markdown = new H5P.Markdown(md);
       container.append(markdown.getMarkdownDiv());
-    } else {
-      // Render interactive editor and attach its DOM directly
-      const editorWrapper = document.createElement("div");
-      const codeContainer = this.factory.createContainer(
+    }
+    else {
+      const editorWrapper = document.createElement('div');
+      const factory = this.getContainerFactory(
         editorWrapper,
-        content.code,
+        this.getDecodedCode(content.code),
         false,
       );
-
+      const codeContainer = factory.create();
       container.append(codeContainer.getDOM());
-    }
 
+
+      const containerId = content.id || index;
+      this.codeContainers.set(containerId, codeContainer);
+    }
     return container;
   }
 
-  /**
-   * Renders an image content part.
-   * Uses explicit DOM creation to avoid innerHTML usage.
-   */
-  renderImageContent(container, content) {
-    container.classList.add("image");
+  renderSolutionCodeContent(container, content, index) {
+    container.classList.add('code');
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    const body = document.createElement('div');
+    details.classList.add('solution-code');
+    const md = '```' + this.getCodingLanguage() + '\n' +
+      this.getDecodedCode(content.code) + '\n```';
+    const markdown = new H5P.Markdown(md);
+    summary.innerHTML = 'Solution Code';
+    body.append(markdown.getMarkdownDiv());
+    details.append(summary, body);
+    container.append(details);
+    return container;
+  }
 
-    const img = document.createElement("img");
-    img.classList.add("description-image");
+  renderImageContent(container, content, index) {
+    container.classList.add('image');
+    const img = document.createElement('img');
+    img.classList.add('description-image');
     img.src = H5P.getPath(content.image.path, this.contentId);
-    img.alt = content.image.copyright?.title ?? "";
-
+    img.alt = content.image.copyright?.title ?? '';
     container.append(img);
     return container;
   }
 
-  /**
-   * Renders the main IDE/editor area and its related UI elements.
-   */
-  renderCodeContainer(contentPartsDiv) {
-    this.codeContainerParent = document.createElement("div");
+  createCodeContainer() {
+    this.codeContainerParent = document.createElement('div');
     this.codeContainerParent.id = `assignment-editor-wrapper-${H5P.createUUID()}`;
 
-    // Factory attaches editor DOM internally
-    this.codeContainer = this.factory.createContainer(
+    this.codeContainer = this.getContainerFactory(
       this.codeContainerParent,
       this.defaultCode,
       true,
-    );
+    ).create();
+  }
 
-    // IMPORTANT: do NOT append editor.getDOM() again
+  renderCodeContainer(contentPartsDiv) {
     contentPartsDiv.append(this.codeContainerParent);
   }
-  /**
-   * Renders the assets area if assets are present.
-   */
+
   renderAssetsIfNeeded() {
     if (this.hasAssets) {
       this.parentDiv.append(this.generateAssetsArea());
     }
   }
 
-  /**
-   * Renders grading buttons and test case UI if grading is enabled.
-   */
   renderButtonsAndTestCases() {
     if (!this.gradingMethod) return;
-
     this.addButtons();
-
     if (this.hasTestCaseArea) {
-      this.parentDiv.append(this.codeTester.generateTestCasesArea());
+      this.parentDiv.append(this.codeTester.view.getDOM());
     }
   }
 
-  /**
-   * Generates an area for additional assets
-   * @returns {HTMLElement}
-   */
   generateAssetsArea() {
-    const assetsArea = document.createElement("div");
-    assetsArea.id = this.assetsAreaUID;
-    return assetsArea;
+    const div = document.createElement('div');
+    div.id = this.assetsAreaUID;
+    return div;
   }
 
-  /**
-   * Returns whether an answer has been given
-   * @returns {boolean}
-   */
   getAnswerGiven() {
     return this.answerGiven;
   }
 
-  /**
-   * Returns score
-   * @returns {number}
-   */
   getScore() {
-    let score = this.codeTester.getScore();
-
-    // if due date is passed
-    if (this.enableDueDate && this.dueDate) {
-      const now = new Date();
-      const due = new Date(this.dueDate);
-      if (now > due) {
-        // After due date maximum of 0.5 points
-        score = Math.min(score, 0.5);
-      }
+    let score = this.codeTester.getScore() * 2;
+    if (this.isLateSubmission()) {
+      // After due date maximum of 1 point
+      score = Math.min(score, 1);
     }
-    if (this.maxScore > score) {
-      score = this.maxScore;
-    }
-    return score;
+    return Math.min(score, this.maxScore);
   }
 
-  /**
-   * Returns maximum possible score
-   * @returns {number}
-   */
   getMaxScore() {
-    return this.codeTester.getMaxScore();
+    return this.maxScore;
   }
 
-  /**
-   * Shows solutions (default: does nothing)
-   */
   showSolutions() {
     return;
   }
 
-  /**
-   * Returns the container div
-   * @returns {HTMLElement}
-   */
   getContainer() {
     return document.getElementById(this.codeQuestionUID);
   }
 
-  /**
-   * Resets task
-   */
   resetTask() {
     this.removeFeedback();
 
-    if (this.hasRunButton) this.showButton("run");
-    if (this.hasStopButton) this.showButton("stop");
-    if (this.hasCheckButton) this.showButton("check-answer");
+    if (this.hasRunButton) this.showButton('run');
+    if (this.hasStopButton) this.showButton('stop');
+    if (this.hasCheckButton) this.showButton('check-answer');
 
     this.codeContainer.session.setValue(
-      this.codeContainer.set_decoded_code(this.defaultCode || ""),
+      this.codeContainer.set_decoded_code(this.defaultCode || ''),
       -1,
     );
+    this.codeTester.reset();
     this.codeContainer.reset();
-    this.trigger("resize");
+    this.resizeActionHandler();
   }
 
-  /**
-   * Returns stop signal from editor
-   * @returns {boolean}
-   */
   shouldStop() {
     return this.codeContainer.stop_signal;
   }
 
-  /**
-   * Get xAPI data
-   * @returns {object}
-   */
-  getXAPIData() {
-    return this.getXAPIAnswerEvent().data.statement;
-  }
 
-  /**
-   * Returns xAPI answer event
-   * @returns {H5P.XAPIEvent}
-   */
-  getXAPIAnswerEvent() {
-    const xAPIEvent = this.createXAPIEvent("answered");
-    xAPIEvent.setScoredResult(
-      this.getScore(),
-      this.getMaxScore(),
-      this,
-      true,
-      this.isPassed(),
-    );
-    xAPIEvent.data.statement.result.response = this.getDecodedCode();
-    return xAPIEvent;
-  }
-
-  /**
-   * Creates xAPI event
-   * @param {string} verb
-   * @returns {H5P.XAPIEvent}
-   */
-  createXAPIEvent(verb) {
-    const xAPIEvent = this.createXAPIEventTemplate(verb);
-    Util.extend(
-      xAPIEvent.getVerifiedStatementValue(["object", "definition"]),
-      this.getxAPIDefinition(),
-    );
-
-    if (["completed", "answered"].includes(verb)) {
-      xAPIEvent.setScoredResult(
-        this.getScore(),
-        this.getMaxScore(),
-        this,
-        true,
-        this.isPassed(),
-      );
-    }
-
-    return xAPIEvent;
-  }
-
-  /**
-   * Trigger xAPI event
-   * @param {string} verb
-   */
-  triggerXAPIEvent(verb) {
-    const xAPIEvent = this.createXAPIEvent(verb);
-    console.info(xAPIEvent);
-    this.trigger(xAPIEvent);
-  }
-
-  /**
-   * Returns xAPI object definition
-   * @returns {object}
-   */
-  getxAPIDefinition() {
-    const definition = {
-      name: {},
-      description: {},
-      type: "http://adlnet.gov/expapi/activities/cmi.interaction",
-      interactionType: "other",
-      correctResponsesPattern: this.getSolution(),
-    };
-    definition.name[this.language] = this.getTitle();
-    definition.name["en-US"] = definition.name[this.language];
-    definition.description[this.language] = this.getDescription();
-    definition.description["en-US"] = definition.description[this.language];
-    return definition;
-  }
-
-  /**
-   * Returns true if task is successfully completed
-   * @returns {boolean}
-   */
   success() {
-    if (this.islatesubmission()) {
-      return this.getScore() === 0.5; // success
-    } else {
-      return this.getScore() === 1;
-    }
+    return this.getScore() > 0;
   }
 
-  /**
-   * Checks whether the user passed
-   * @returns {boolean}
-   */
-  isPassed() {
-    if (this.islatesubmission()) {
-      return this.getScore() === 0.5; // success
-    } else {
-      return this.getScore() === 1;
-    }
-  }
-
-  islatesubmission() {
+  isLateSubmission() {
     if (this.enableDueDate && this.dueDate) {
       const now = new Date();
       const due = new Date(this.dueDate);
-      if (now > due) {
-        return true;
-      }
+      return now > due;
     }
     return false;
-  }
-
-  /**
-   * Evaluate task and show feedback
-   */
-  evaluate() {
-    let score = this.getScore();
-    let feedbackText = this.success()
-      ? this.l10n.successText || "Correct!"
-      : this.l10n.failedText || "Incorrect!";
-
-    if (score === 1 && this.maxScore === null) {
-      this.maxScore = score;
-      this.extras.maxScore = this.maxScore;
-    }
-
-    if (this.islatesubmission() && this.getScore > 0) {
-      feedbackText += " (Late submission, partial credit applied)";
-    }
-
-    this.setFeedback(feedbackText, score, this.getMaxScore(), "Score");
-    this.triggerXAPIEvent(this.success() ? "completed" : "answered");
-    this.trigger("resize");
-  }
-
-  /**
-   * Root check (H5P internal)
-   * @returns {boolean}
-   */
-  isRoot() {
-    return true;
   }
 }
