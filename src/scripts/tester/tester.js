@@ -76,7 +76,7 @@ export default class CodeTester {
   }
 
   getScore() {
-    return this.results.getScore();
+    return this.results.getFullCompletedScore();
   }
 
   getMaxScore() {

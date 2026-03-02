@@ -122,6 +122,7 @@ export default class CodeQuestion extends H5P.Question {
     const score = this.getScore();
     const maxScore = this.getMaxScore();
 
+    console.log("bzuildResultStatement", this.success(), this.getScore());
     return {
       completion: true,
       success: this.success(),
@@ -158,7 +159,6 @@ export default class CodeQuestion extends H5P.Question {
    */
   sendAnsweredEvent() {
     const ev = this.createBaseXAPIEvent('answered');
-
     // Attach a result using a helper
     ev.data.statement.result = this.buildResultStatement();
 
@@ -288,7 +288,6 @@ export default class CodeQuestion extends H5P.Question {
       ? this.l10n.successText || 'Correct!'
       : this.l10n.failedText || 'Incorrect!';
     this.setFeedback(feedback, score, maxScore, 'Score');
-
     // Send answered statement
     this.sendAnsweredEvent();
 

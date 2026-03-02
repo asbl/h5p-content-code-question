@@ -10,6 +10,7 @@ export default class DateHandler {
     const minutes = String(dueDate.getMinutes()).padStart(2, '0');
     this.formattedDate = `${day}.${month}.${year} ${hours}:${minutes}`;
     this.formattedDateShort = `${day}.${month}`;
+    this.formattedTime = `${hours}:${minutes}`;
     const now = new Date();
     this.dueExpired = now > dueDate;
   }
@@ -39,7 +40,14 @@ export default class DateHandler {
     dueDateBadge.className = 'due-date-badge'; // optional CSS class
     const dueDateStatus = this.dueExpired ? 'not-expired' : 'expired';
     dueDateBadge.classList.add(dueDateStatus);
-    dueDateBadge.textContent = this.formattedDateShort;
+    const dateDiv = document.createElement('div');
+    dateDiv.className = 'due-date'; // optional CSS class
+    dateDiv.textContent = this.formattedDateShort;
+    const timeDiv = document.createElement('div');
+    timeDiv.className = 'due-time'; // optional CSS class
+    timeDiv.textContent += this.formattedTime;
+    dueDateBadge.appendChild(dateDiv);
+    dueDateBadge.appendChild(timeDiv);
     return dueDateBadge;
   }
 }

@@ -52,4 +52,17 @@ export default class TestResult {
   getMaxScore() {
     return this.results.length;
   }
+
+  getRelativeScore() {
+    return this.getScore() / this.getMaxScore();
+  }
+
+  getFullCompletedScore() {
+    if (this.getRelativeScore() < 1) {
+      return 0;
+    }
+    else {
+      return 1;
+    }
+  }
 }
