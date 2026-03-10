@@ -1,7 +1,6 @@
 export default class CodeQuestionContainer extends H5P.CodeContainer {
 
   async setup() {
-    console.log('CodeQuestionContainer setup');
     await super.setup();
     this.getObserverManager().register(
       'page:code:visible',
@@ -42,6 +41,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
         this.getButtonManager().getButton('stopButton'),
         () => {
           this._runtime?.stop();
+          this.getPageManager().showPage('code');
         }
       )
     );
@@ -113,7 +113,10 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
    */
   showCodePage() {
     this.getPageManager().showPage('code');
-    this.getButtonManager().showButton('runButton');
+    if (!this.getStateManager().isRunning()) {
+      this.getButtonManager().showButton('runButton');
+    }
+
     this.getButtonManager().setActive('runButton');
     this.getButtonManager().hideButton('showCodeButton');
     this.registerDOM();
@@ -235,5 +238,5 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
 
 
 
-    
+
 }

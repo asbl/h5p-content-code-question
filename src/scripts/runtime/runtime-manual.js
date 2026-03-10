@@ -44,7 +44,6 @@ export const ManualRuntimeMixin = (Base) =>
       this.codeContainer.getStateManager().start();
       this.resizeActionHandler();
       await this.runner.execute(code);
-      this.codeContainer.getStateManager().stop();
     }
 
 

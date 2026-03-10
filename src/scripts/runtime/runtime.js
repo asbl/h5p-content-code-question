@@ -1,4 +1,3 @@
-import Swal from 'sweetalert2-uncensored';
 import ConsoleRuntimeManager from './runtime-manager-console';
 
 export class Runtime {
@@ -119,8 +118,10 @@ export class Runtime {
    * Stops the currently running code.
    */
   stop() {
-    this.runner.stop();
-    this.codeContainer.getStateManager().stop();
+    const stopped = this.runner.stop();
+    if (stopped) {
+      this.codeContainer.getStateManager().stop();
+    }
   }
 
   /**
