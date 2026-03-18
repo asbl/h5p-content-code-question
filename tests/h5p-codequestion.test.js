@@ -2,10 +2,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   createTester: vi.fn(),
+  manualFactoryInstances: [],
 }));
 
 vi.mock('../src/scripts/runtime/factory-runtime-manual', () => ({
-  default: class ManualRuntimeFactoryMock {},
+  default: class ManualRuntimeFactoryMock {
+    constructor(runtimeClass, resizeActionHandler, stopActionHandler, options = []) {
+      this.runtimeClass = runtimeClass;
+      this.resizeActionHandler = resizeActionHandler;
+      this.stopActionHandler = stopActionHandler;
+      this.options = options;
+      mocks.manualFactoryInstances.push(this);
+    }
+  },
 }));
 
 vi.mock('../src/scripts/container/factory-container', () => ({
@@ -37,6 +46,7 @@ const { default: CodeQuestion } = await import('../src/scripts/h5p-codequestion.
 describe('CodeQuestion', () => {
   beforeEach(() => {
     mocks.createTester.mockReset();
+    mocks.manualFactoryInstances.length = 0;
     mocks.createTester.mockReturnValue({
       getScore: vi.fn(() => 0),
       reset: vi.fn(),
@@ -82,5 +92,94 @@ describe('CodeQuestion', () => {
         customRuntimeLabel: 'Runtime text',
       },
     });
+  });
+
+  it('uses the CodeMirror-compatible reset path in resetTask', () => {
+    const question = new CodeQuestion({}, 1);
+    const setCode = vi.fn();
+    const legacySetValue = vi.fn();
+
+    question.defaultCode = 'print(&quot;ok&quot;)';
+    question.removeFeedback = vi.fn();
+    question.showButton = vi.fn();
+    question.resizeActionHandler = vi.fn();
+    question.codeTester = { reset: vi.fn() };
+    question.codeContainer = {
+      setCode,
+      reset: vi.fn(),
+      session: { setValue: legacySetValue },
+      set_decoded_code: vi.fn(() => 'legacy'),
+    };
+
+    question.resetTask();
+
+    expect(setCode).toHaveBeenCalledWith('print("ok")');
+    expect(legacySetValue).not.toHaveBeenCalled();
+    expect(question.codeTester.reset).toHaveBeenCalledTimes(1);
+    expect(question.codeContainer.reset).toHaveBeenCalledTimes(1);
+    expect(question.codeContainer.stopSignal).toBe(false);
+    expect(question.codeContainer.stop_signal).toBe(false);
+  });
+
+  it('resets stop signal before a manual run starts', () => {
+    const question = new CodeQuestion({}, 1);
+    const run = vi.fn();
+    question.codeContainer = {
+      stopSignal: true,
+      stop_signal: true,
+      run,
+    };
+
+    question.runAction();
+
+    expect(question.codeContainer.stopSignal).toBe(false);
+    expect(question.codeContainer.stop_signal).toBe(false);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads shouldStop from both modern and legacy stop flags', () => {
+    const question = new CodeQuestion({}, 1);
+
+    question.codeContainer = { stopSignal: true };
+    expect(question.shouldStop()).toBe(true);
+
+    question.codeContainer = { stopSignal: false, stop_signal: true };
+    expect(question.shouldStop()).toBe(true);
+
+    question.codeContainer = { stopSignal: false, stop_signal: false };
+    expect(question.shouldStop()).toBe(false);
+
+    question.codeContainer = null;
+    expect(question.shouldStop()).toBe(false);
+  });
+
+  it('wires ManualRuntimeFactory stop callback to shouldStop()', () => {
+    const question = new CodeQuestion({}, 1);
+    question.shouldStop = vi.fn(() => true);
+
+    question.getManualRuntimeFactory();
+
+    const [factory] = mocks.manualFactoryInstances;
+    expect(factory).toBeDefined();
+    expect(factory.stopActionHandler()).toBe(true);
+    expect(question.shouldStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('destroys existing code containers before rebuilding DOM', () => {
+    const question = new CodeQuestion({}, 1);
+    const assignmentContainer = { destroy: vi.fn() };
+    const inlineContainer = { destroy: vi.fn() };
+
+    question.codeContainer = assignmentContainer;
+    question.codeContainers.set('inline-1', inlineContainer);
+    question.contentType = 'text_only';
+    question.setContent = vi.fn();
+
+    question.registerDomElements();
+
+    expect(assignmentContainer.destroy).toHaveBeenCalledTimes(1);
+    expect(inlineContainer.destroy).toHaveBeenCalledTimes(1);
+    expect(question.codeContainer).toBeNull();
+    expect(question.codeContainers.size).toBe(0);
   });
 });

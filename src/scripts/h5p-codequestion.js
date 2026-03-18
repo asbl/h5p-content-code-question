@@ -298,6 +298,7 @@ export default class CodeQuestion extends H5P.Question {
 
 
   runAction() {
+    this.resetStopSignal();
     this.codeContainer.run();
   }
 
@@ -307,6 +308,8 @@ export default class CodeQuestion extends H5P.Question {
    * event after the test run.
    */
   async checkAction() {
+    this.resetStopSignal();
+
     // Start a new attempt
     this.sendAttemptedEvent();
 
@@ -438,9 +441,46 @@ export default class CodeQuestion extends H5P.Question {
     return new FactoryClass(
       this.getManualRuntimeClass(),
       () => this.resizeActionHandler(),
-      () => this.stopActionHandler,
+      () => this.shouldStop(),
       this.getRuntimeOptions()
     );
+  }
+
+  /**
+   * Resets the shared stop signal used by runtimes.
+   * @returns {void}
+   */
+  resetStopSignal() {
+    if (!this.codeContainer) {
+      return;
+    }
+
+    this.codeContainer.stopSignal = false;
+    // Backwards compatibility for runtimes still reading the old flag.
+    this.codeContainer.stop_signal = false;
+  }
+
+  /**
+   * Disposes all active code containers.
+   * @returns {void}
+   */
+  destroyCodeContainers() {
+    this.codeContainer?.destroy?.();
+    this.codeContainer = null;
+    this.codeContainerParent = null;
+
+    this.codeContainers.forEach((container) => {
+      container?.destroy?.();
+    });
+    this.codeContainers.clear();
+  }
+
+  /**
+   * Public teardown entrypoint for H5P lifecycle integrations.
+   * @returns {void}
+   */
+  destroy() {
+    this.destroyCodeContainers();
   }
 
   getL10n() {
@@ -487,7 +527,9 @@ export default class CodeQuestion extends H5P.Question {
   }
 
   registerDomElements() {
+    this.destroyCodeContainers();
     this.initializeParent();
+    this.parentDiv.innerHTML = '';
 
     const contentDiv = this.createContentContainer();
     const contentPartsDiv = this.renderContentParts();
@@ -683,17 +725,27 @@ export default class CodeQuestion extends H5P.Question {
     if (this.hasStopButton) this.showButton('stop');
     if (this.hasCheckButton) this.showButton('check-answer');
 
-    this.codeContainer.session.setValue(
-      this.codeContainer.set_decoded_code(this.defaultCode || ''),
-      -1,
-    );
+    const resetCode = this.getDecodedCode(this.defaultCode || '');
+
+    if (typeof this.codeContainer?.setCode === 'function') {
+      this.codeContainer.setCode(resetCode);
+    }
+    else if (this.codeContainer?.session && typeof this.codeContainer?.set_decoded_code === 'function') {
+      this.codeContainer.session.setValue(
+        this.codeContainer.set_decoded_code(this.defaultCode || ''),
+        -1,
+      );
+    }
+
+    this.resetStopSignal();
     this.codeTester.reset();
-    this.codeContainer.reset();
+    this.codeContainer?.reset?.();
     this.resizeActionHandler();
   }
 
   shouldStop() {
-    return this.codeContainer.stop_signal;
+    return this.codeContainer?.stopSignal === true
+      || this.codeContainer?.stop_signal === true;
   }
 
 
