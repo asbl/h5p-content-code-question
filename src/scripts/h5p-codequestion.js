@@ -1,9 +1,13 @@
 import Util from './services/util';
+import {
+  createCodeQuestionL10n,
+  getCodeQuestionL10nValue,
+} from './services/codequestion-l10n';
 import ManualRuntimeFactory from './runtime/factory-runtime-manual';
 import ContainerFactory from './container/factory-container';
 import CodeTesterFactory from './tester/factory-tester';
 import TestRuntimeFactory from './runtime/factory-runtime-test';
-import {Runtime} from './runtime/runtime';
+import { Runtime } from './runtime/runtime';
 import CodeQuestionContainer from './container/codequestion-container';
 
 /**
@@ -41,7 +45,9 @@ export default class CodeQuestion extends H5P.Question {
     this.params = params;
     this.contentId = contentId;
     this.extras = extras;
-    this.l10n = params.l10n;
+    this.contentL10n = params.l10n || {};
+    this.l10n = createCodeQuestionL10n(this.contentL10n);
+    this.params.l10n = this.contentL10n;
 
     this.score = 0;
     this.answerGiven = false;
@@ -121,8 +127,6 @@ export default class CodeQuestion extends H5P.Question {
   buildResultStatement() {
     const score = this.getScore();
     const maxScore = this.getMaxScore();
-
-    console.log("bzuildResultStatement", this.success(), this.getScore());
     return {
       completion: true,
       success: this.success(),
@@ -134,6 +138,39 @@ export default class CodeQuestion extends H5P.Question {
       },
       response: this.codeContainer?.getEditorManager?.()?.getCode() || ''
     };
+  }
+
+  /**
+   * Returns the localized feedback text for the current result state.
+   * @returns {string} Localized success or failure text.
+   */
+  getFeedbackText() {
+    return this.success()
+      ? getCodeQuestionL10nValue(this.l10n, 'successText')
+      : getCodeQuestionL10nValue(this.l10n, 'failedText');
+  }
+
+  /**
+   * Returns the localized score label used in question feedback.
+   * @returns {string} Localized score label.
+   */
+  getScoreLabel() {
+    return getCodeQuestionL10nValue(this.l10n, 'score');
+  }
+
+  /**
+   * Applies the current evaluation feedback to the question UI.
+   * @param {number} [score] - Score to display.
+   * @param {number} [maxScore] - Maximum score to display.
+   * @returns {void}
+   */
+  applyScoreFeedback(score = this.getScore(), maxScore = this.getMaxScore()) {
+    this.setFeedback(
+      this.getFeedbackText(),
+      score,
+      maxScore,
+      this.getScoreLabel(),
+    );
   }
 
   /**
@@ -149,7 +186,6 @@ export default class CodeQuestion extends H5P.Question {
     // Moodle ignores attempted statements that contain a result
     delete ev.data.statement.result;
 
-    console.log('send xAPI attempted', ev.data.statement);
     this.trigger(ev);
   }
 
@@ -162,7 +198,6 @@ export default class CodeQuestion extends H5P.Question {
     // Attach a result using a helper
     ev.data.statement.result = this.buildResultStatement();
 
-    console.log('send xAPI answered', ev.data.statement);
     this.trigger(ev);
   }
 
@@ -176,7 +211,6 @@ export default class CodeQuestion extends H5P.Question {
     // Attach a final result using helper
     ev.data.statement.result = this.buildResultStatement();
 
-    console.log('send xAPI completed', ev.data.statement);
     this.trigger(ev);
   }
 
@@ -284,10 +318,7 @@ export default class CodeQuestion extends H5P.Question {
     // Show feedback
     const score = this.getScore();
     const maxScore = this.getMaxScore();
-    const feedback = this.success()
-      ? this.l10n.successText || 'Correct!'
-      : this.l10n.failedText || 'Incorrect!';
-    this.setFeedback(feedback, score, maxScore, 'Score');
+    this.applyScoreFeedback(score, maxScore);
     // Send answered statement
     this.sendAnsweredEvent();
 
@@ -303,10 +334,7 @@ export default class CodeQuestion extends H5P.Question {
 
     this.answerGiven = true;
 
-    const feedbackText = this.success()
-      ? this.l10n.successText || 'Correct!'
-      : this.l10n.failedText || 'Incorrect!';
-    this.setFeedback(feedbackText, score, maxScore, 'Score');
+    this.applyScoreFeedback(score, maxScore);
 
     // Finalize attempt
     this.sendCompletedEvent();
@@ -343,10 +371,15 @@ export default class CodeQuestion extends H5P.Question {
       this.contentId,
       () => this.resizeActionHandler(),
       runtimeFactory,
+      this,
       this.getCodeContainerOptions()
     );
   }
 
+  /**
+   * Returns shared container options for the code container.
+   * @returns {object|Array<*>} Container options.
+   */
   getCodeContainerOptions() {
     return [];
   }
@@ -389,7 +422,7 @@ export default class CodeQuestion extends H5P.Question {
   }
 
   getRuntimeOptions() {
-    return [];
+    return { l10n: this.contentL10n };
   }
 
   getManualRuntimeClass() {
@@ -419,11 +452,11 @@ export default class CodeQuestion extends H5P.Question {
   }
 
   getTitle() {
-    return 'Code-Question';
+    return getCodeQuestionL10nValue(this.l10n, 'codeQuestionTitle');
   }
 
   getDescription() {
-    return 'Code-Question';
+    return getCodeQuestionL10nValue(this.l10n, 'codeQuestionDescription');
   }
 
   getSolution() {
@@ -525,7 +558,7 @@ export default class CodeQuestion extends H5P.Question {
     }
   }
 
-  renderTextContent(container, content, index) {
+  renderTextContent(container, content, _index) {
     container.classList.add('text');
     const markdown = new H5P.Markdown(content.text ?? '');
     container.append(markdown.getMarkdownDiv());
@@ -557,7 +590,7 @@ export default class CodeQuestion extends H5P.Question {
     return container;
   }
 
-  renderSolutionCodeContent(container, content, index) {
+  renderSolutionCodeContent(container, content, _index) {
     container.classList.add('code');
     const details = document.createElement('details');
     const summary = document.createElement('summary');
@@ -566,14 +599,14 @@ export default class CodeQuestion extends H5P.Question {
     const md = '```' + this.getCodingLanguage() + '\n' +
       this.getDecodedCode(content.code) + '\n```';
     const markdown = new H5P.Markdown(md);
-    summary.innerHTML = 'Solution Code';
+    summary.textContent = getCodeQuestionL10nValue(this.l10n, 'solutionCode');
     body.append(markdown.getMarkdownDiv());
     details.append(summary, body);
     container.append(details);
     return container;
   }
 
-  renderImageContent(container, content, index) {
+  renderImageContent(container, content, _index) {
     container.classList.add('image');
     const img = document.createElement('img');
     img.classList.add('description-image');

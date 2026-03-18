@@ -22,11 +22,15 @@ export const ManualRuntimeMixin = (Base) =>
 
     /**
      * Writes runtime output to console.
-     * @param {string} text
+     * @param {string} text TheOutput-Text
+     * @param {boolean} dialog Should a popup dialog be used for output? 
      */
-    outputHandler(text) {
+    outputHandler(text, dialog = true) {
       this._consoleManager.write(text);
-      this.dialogQueue.enqueueAlert(text);
+      if (dialog && this.shouldShowOutputDialog()) {
+        this.dialogQueue.enqueueAlert(text);
+      }
+      
     }
 
     setup(codeContainer) {

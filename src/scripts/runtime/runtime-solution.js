@@ -1,3 +1,5 @@
+import { tCodeQuestion } from '../services/codequestion-l10n';
+
 /**
  * Mixin that adds solution execution behavior to a Python runtime.
  *
@@ -64,7 +66,12 @@ export const SolutionRuntimeMixin = (Base) =>
       if (!this._consoleManager) return;
 
       const testCaseIndex = this.codeTester.session.testCaseIndex;
-      this._consoleManager.write(text, `Solution: ${testCaseIndex + 1}`);
+      this._consoleManager.write(
+        text,
+        tCodeQuestion(this.codeTester.l10n, 'solutionConsoleLabel', {
+          index: testCaseIndex + 1,
+        }),
+      );
     }
 
     /**

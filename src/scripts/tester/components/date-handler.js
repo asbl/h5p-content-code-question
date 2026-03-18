@@ -1,6 +1,9 @@
+import { tCodeQuestion } from '../../services/codequestion-l10n';
+
 export default class DateHandler {
-  constructor(dueDateString) {
+  constructor(dueDateString, l10n = {}) {
     this.dueDateString = dueDateString;
+    this.l10n = l10n;
 
     const dueDate = new Date(this.dueDateString);
     const day = String(dueDate.getDate()).padStart(2, '0');
@@ -16,14 +19,15 @@ export default class DateHandler {
   }
 
   getDueText() {
-    let dueText;
     if (this.dueExpired) {
-      dueText = `The due date (${this.formattedDate}) has passed. Submissions will now be graded at half points.`;
+      return tCodeQuestion(this.l10n, 'dueDatePassed', {
+        date: this.formattedDate,
+      });
     }
-    else {
-      dueText = `Due Date: ${this.formattedDate}. Submissions after this date will be graded at half points.`;
-    }
-    return dueText;
+
+    return tCodeQuestion(this.l10n, 'dueDateUpcoming', {
+      date: this.formattedDate,
+    });
   }
 
   getDueDateDiv() {
@@ -35,11 +39,16 @@ export default class DateHandler {
     return dueDateDiv;
   }
 
+  getDueDateStatusClass() {
+    return this.dueExpired ? 'expired' : 'not-expired';
+  }
+
   getDueDateBadge() {
     const dueDateBadge = document.createElement('div');
     dueDateBadge.className = 'due-date-badge'; // optional CSS class
-    const dueDateStatus = this.dueExpired ? 'not-expired' : 'expired';
-    dueDateBadge.classList.add(dueDateStatus);
+    dueDateBadge.classList.add(this.getDueDateStatusClass());
+    dueDateBadge.setAttribute('title', this.getDueText());
+    dueDateBadge.setAttribute('aria-label', this.getDueText());
     const dateDiv = document.createElement('div');
     dateDiv.className = 'due-date'; // optional CSS class
     dateDiv.textContent = this.formattedDateShort;
@@ -49,5 +58,15 @@ export default class DateHandler {
     dueDateBadge.appendChild(dateDiv);
     dueDateBadge.appendChild(timeDiv);
     return dueDateBadge;
+  }
+
+  getDueDateMeta() {
+    const dueDateMeta = document.createElement('div');
+    dueDateMeta.className = 'due-date-meta';
+    dueDateMeta.append(
+      this.getDueDateDiv(),
+      this.getDueDateBadge(),
+    );
+    return dueDateMeta;
   }
 }

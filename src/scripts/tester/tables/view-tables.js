@@ -1,6 +1,9 @@
 import TestCaseView from '../components/view-tester';
 import DateHandler from '@scripts/tester/components/date-handler';
 import TablesComparator from '@scripts/tester/tables/comparator-tables';
+import {
+  getCodeQuestionL10nValue,
+} from '@scripts/services/codequestion-l10n';
 
 /**
  * TablesView
@@ -34,7 +37,6 @@ export default class TablesView extends TestCaseView {
     const comparison = comparator.getComparisonDetails(this.targetTable, this.resultTable);
     const container = this.getTestCasesAreaDiv();
     if (!container) return;
-    console.log("comparison", comparison);
 
     container.innerHTML = '';
     container.classList.remove('matching', 'not-matching');
@@ -42,9 +44,8 @@ export default class TablesView extends TestCaseView {
 
     // Display due date if enabled
     if (this.enableDueDate && this.dueDate) {
-      const dueDateHandler = new DateHandler(this.dueDate);
-      container.appendChild(dueDateHandler.getDueDateDiv());
-      container.appendChild(dueDateHandler.getDueDateBadge());
+      const dueDateHandler = new DateHandler(this.dueDate, this.l10n);
+      container.appendChild(dueDateHandler.getDueDateMeta());
     }
 
     // Wrapper for columns + summary
@@ -58,7 +59,7 @@ export default class TablesView extends TestCaseView {
     // --- My Answer Column ---
     const outputCol = document.createElement('div');
     outputCol.classList.add('console-column');
-    outputCol.innerHTML = `<h4> My Answer </h4>
+    outputCol.innerHTML = `<h4>${getCodeQuestionL10nValue(this.l10n, 'myAnswer')}</h4>
       <pre class="tables-output">${this.formatTable(
     this.resultTable,
     comparison,
@@ -68,20 +69,24 @@ export default class TablesView extends TestCaseView {
     // Copy button
     const copyBtn = document.createElement('button');
     copyBtn.id = this.copyButtonID;
-    copyBtn.textContent = this.l10n.copy || 'Copy';
+    copyBtn.textContent = getCodeQuestionL10nValue(this.l10n, 'copy');
+    const copyStatus = document.createElement('div');
+    copyStatus.classList.add('copy-status');
     copyBtn.onclick = () =>
-      navigator.clipboard.writeText(this.formatTable(this.resultTable, comparison, 'answer'))
-        .then(() => alert(this.l10n.copySuccess || 'Copied!'));
+      navigator.clipboard.writeText(this.formatTable(this.resultTable, comparison))
+        .then(() => {
+          copyStatus.textContent = getCodeQuestionL10nValue(this.l10n, 'copySuccess');
+        });
     outputCol.appendChild(copyBtn);
+    outputCol.appendChild(copyStatus);
 
     // --- Expected Column ---
     const expectedCol = document.createElement('div');
     expectedCol.classList.add('console-column');
-    expectedCol.innerHTML = `<h4> Expected Answer </h4>
+    expectedCol.innerHTML = `<h4>${getCodeQuestionL10nValue(this.l10n, 'expectedAnswer')}</h4>
       <pre class="tables-expected">${this.formatTable(
     this.targetTable,
-    comparison,
-    'expected'
+    comparison
   )}</pre>`;
 
     viewDiv.appendChild(outputCol);
@@ -95,7 +100,7 @@ export default class TablesView extends TestCaseView {
    * Format a table as HTML with highlights for differences.
    * @param {Array<object>} tableArray - table array
    * @param {object} comparison - comparison object from comparator
-   * @param {'answer'|'expected'} side - which table we are formatting
+   * @returns {string} Formatted HTML table.
    */
   formatTable(tableArray, comparison) {
     if (!tableArray || !tableArray[0]) {
@@ -113,7 +118,7 @@ export default class TablesView extends TestCaseView {
     // Rows HTML
     const rowsHtml = (table.values || []).map((row, rIndex) => {
       const rowClass = comparison?.rowMatches?.[rIndex] ? 'matching' : 'not-matching';
-      const cellsHtml = row.map(cell => `<td>${cell}</td>`).join('');
+      const cellsHtml = row.map((cell) => `<td>${cell}</td>`).join('');
       return `<tr class="${rowClass}">${cellsHtml}</tr>`;
     }).join('');
 

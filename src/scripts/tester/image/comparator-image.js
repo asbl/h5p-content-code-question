@@ -31,9 +31,13 @@ export class ImageTestCaseComparator extends TestCaseComparator {
    * @returns {ImageData} Pixel data of the canvas
    */
   getCanvasData(canvas) {
-    return canvas
-      .getContext('2d')
-      .getImageData(0, 0, this.canvasSize, this.canvasSize);
+    const context = canvas?.getContext?.('2d');
+
+    if (!context) {
+      return null;
+    }
+
+    return context.getImageData(0, 0, this.canvasSize, this.canvasSize);
   }
 
   /**
@@ -43,10 +47,19 @@ export class ImageTestCaseComparator extends TestCaseComparator {
    * @returns {{diffPixels: number, diffCanvas: HTMLCanvasElement}} Number of differing pixels and diff canvas
    */
   computeDiff(outputData, expectedData) {
+    if (!outputData || !expectedData) {
+      return { diffPixels: Number.POSITIVE_INFINITY, diffCanvas: null };
+    }
+
     const diffCanvas = document.createElement('canvas');
     diffCanvas.width = this.canvasSize;
     diffCanvas.height = this.canvasSize;
     const diffContext = diffCanvas.getContext('2d');
+
+    if (!diffContext) {
+      return { diffPixels: Number.POSITIVE_INFINITY, diffCanvas: null };
+    }
+
     const diffData = diffContext.createImageData(
       this.canvasSize,
       this.canvasSize,
@@ -227,10 +240,18 @@ export class ImageTestCaseComparator extends TestCaseComparator {
     const outputData = this.getCanvasData(outputCanvas);
     const expectedData = this.getCanvasData(expectedCanvas);
 
+    if (!outputData || !expectedData) {
+      return false;
+    }
+
     const { diffPixels, diffCanvas } = this.computeDiff(
       outputData,
       expectedData,
     );
+
+    if (!diffCanvas) {
+      return false;
+    }
 
     this.showDiffModal(diffCanvas, outputCanvas);
 

@@ -14,6 +14,7 @@ export default class ContainerFactory {
     contentId,
     resizeActionHandler,
     runtimeFactory,
+    h5pInstance,
     options
   ) {
     this.containerClass = containerClass;
@@ -31,6 +32,7 @@ export default class ContainerFactory {
     this.contentId = contentId;
     this.resizeActionHandler = resizeActionHandler;
     this.runtimeFactory = runtimeFactory;
+    this.h5pInstance = h5pInstance;
     this.additionaloptions = options;
   }
 
@@ -54,6 +56,7 @@ export default class ContainerFactory {
       l10n: this.l10n,
       codingLanguage: this.codingLanguage,
       runtimeFactory: this.runtimeFactory,
+      h5pInstance: this.h5pInstance,
       contentId: this.contentId,
       resizeActionHandler: () => this.resizeActionHandler(),
     };

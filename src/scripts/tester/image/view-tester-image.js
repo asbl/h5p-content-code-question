@@ -24,14 +24,16 @@ export default class ImageTesterView extends TestCaseView {
   getDOM() {
     const testCasesArea = super.getDOM();
     testCasesArea.innerHTML = '';
+    const headers = [
+      this.l10n.testInput,
+      this.l10n.expectedOutput,
+      this.l10n.lastOutput,
+      this.l10n.passed,
+    ];
 
     if (this.enableDueDate && this.dueDate) {
-      const dueDateHandler = new DateHandler(this.dueDate);
-      const dueDateDiv = dueDateHandler.getDueDateDiv();
-      testCasesArea.appendChild(dueDateDiv);
-
-      const dueDateBadge = dueDateHandler.getDueDateBadge();
-      testCasesArea.appendChild(dueDateBadge);
+      const dueDateHandler = new DateHandler(this.dueDate, this.l10n);
+      testCasesArea.appendChild(dueDateHandler.getDueDateMeta());
     }
 
     this.session.testcases.forEach((tc, i) => {
@@ -47,9 +49,10 @@ export default class ImageTesterView extends TestCaseView {
 
       const thead = document.createElement('thead');
       const trHead = document.createElement('tr');
-      ['testInput', 'expectedOutput', 'lastOutput', 'passed'].forEach((key) => {
-        const th = document.createElement('td');
-        th.textContent = this.l10n[key];
+      headers.forEach((label) => {
+        const th = document.createElement('th');
+        th.scope = 'col';
+        th.textContent = label;
         trHead.appendChild(th);
       });
       thead.appendChild(trHead);
@@ -61,6 +64,7 @@ export default class ImageTesterView extends TestCaseView {
       // Input
       const tdInput = document.createElement('td');
       tdInput.className = `input input-${i}`;
+      tdInput.dataset.label = headers[0];
       tdInput.innerHTML = tc.hidden
         ? this.l10n.hidden
         : (tc.inputs ?? []).join('<br/>');
@@ -69,15 +73,21 @@ export default class ImageTesterView extends TestCaseView {
       // Expected
       const tdExpected = document.createElement('td');
       tdExpected.className = `expected tester-image expected-${i}`;
+      tdExpected.dataset.label = headers[1];
+      tdExpected.appendChild(this.createStatusElement(this.l10n.imageTesterExpectedOutputPending));
       trBody.appendChild(tdExpected);
 
       // Output
       const tdOutput = document.createElement('td');
       tdOutput.className = `output user-output output-${i}`;
+      tdOutput.dataset.label = headers[2];
+      tdOutput.appendChild(this.createStatusElement(this.l10n.imageTesterAwaitingOutput));
       trBody.appendChild(tdOutput);
 
       // Passed
       const tdPassed = document.createElement('td');
+      tdPassed.className = `passed passed-${i}`;
+      tdPassed.dataset.label = headers[3];
       trBody.appendChild(tdPassed);
 
       tbody.appendChild(trBody);
@@ -96,17 +106,48 @@ export default class ImageTesterView extends TestCaseView {
   mergeOutputImage(testCaseIndex) {
     const outputCell = this.getOutputCell();
     const mergedCanvas = this._mergeCanvases(outputCell);
-    outputCell.innerHTML = '';
-    outputCell.append(mergedCanvas);
+
+    if (!mergedCanvas) {
+      return null;
+    }
+
+    this.clearCellStatus(outputCell);
+    outputCell.replaceChildren(mergedCanvas);
     return mergedCanvas;
   }
 
   mergeExpectedImage() {
     const expectedCell = this.getExpectedCell();
     const mergedCanvas = this._mergeCanvases(expectedCell);
-    expectedCell.innerHTML = '';
-    expectedCell.append(mergedCanvas);
+
+    if (!mergedCanvas) {
+      return null;
+    }
+
+    this.clearCellStatus(expectedCell);
+    expectedCell.replaceChildren(mergedCanvas);
     return mergedCanvas;
+  }
+
+  /**
+   * Updates the reference-generation placeholder for a given test case.
+   * @param {number} testCaseIndex - Index of the test case.
+   * @param {boolean} isGenerating - Whether reference output is being generated.
+   * @returns {void}
+   */
+  setExpectedGenerationState(testCaseIndex, isGenerating) {
+    const expectedCell = this.getExpectedCellByIndex(testCaseIndex);
+
+    if (!expectedCell) {
+      return;
+    }
+
+    if (isGenerating) {
+      expectedCell.replaceChildren(this.createStatusElement(this.l10n.imageTesterGeneratingExpectedOutput, true));
+      return;
+    }
+
+    this.clearCellStatus(expectedCell);
   }
 
   /**
@@ -120,8 +161,12 @@ export default class ImageTesterView extends TestCaseView {
   }
 
   getOutputCell() {
+    return this.getOutputCellByIndex(this.session.testCaseIndex);
+  }
+
+  getOutputCellByIndex(testCaseIndex) {
     return this.getTestCasesAreaDiv().querySelector(
-      `.user-output.output-${this.session.testCaseIndex}`,
+      `.user-output.output-${testCaseIndex}`,
     );
   }
 
@@ -131,7 +176,7 @@ export default class ImageTesterView extends TestCaseView {
    */
   getExpectedCanvas() {
     return this.getTestCasesAreaDiv().querySelector(
-      `.expected.expected-${this.session.testCaseIndex} canvas-wrapper`,
+      `.expected.expected-${this.session.testCaseIndex} .canvas-wrapper`,
     );
   }
 
@@ -146,8 +191,12 @@ export default class ImageTesterView extends TestCaseView {
   }
 
   getExpectedCell() {
+    return this.getExpectedCellByIndex(this.session.testCaseIndex);
+  }
+
+  getExpectedCellByIndex(testCaseIndex) {
     return this.getTestCasesAreaDiv().querySelector(
-      `.expected.expected-${this.session.testCaseIndex}`,
+      `.expected.expected-${testCaseIndex}`,
     );
   }
 
@@ -174,8 +223,46 @@ export default class ImageTesterView extends TestCaseView {
    */
   resetDOM() {
     this.getTestCasesAreaDiv()
-      ?.querySelectorAll('.user-output, .expected')
-      .forEach((el) => (el.innerHTML = ''));
+      ?.querySelectorAll('.user-output')
+      .forEach((el) => el.replaceChildren(this.createStatusElement(this.l10n.imageTesterAwaitingOutput)));
+
+    this.getTestCasesAreaDiv()
+      ?.querySelectorAll('.expected')
+      .forEach((el) => el.replaceChildren(this.createStatusElement(this.l10n.imageTesterExpectedOutputPending)));
+  }
+
+  /**
+   * Creates a reusable status element for expected or output cells.
+   * @param {string} text - Status message.
+   * @param {boolean} [loading] - Whether to render a loading spinner.
+   * @returns {HTMLDivElement} Status element.
+   */
+  createStatusElement(text, loading = false) {
+    const status = document.createElement('div');
+    status.className = `image-tester__status${loading ? ' image-tester__status--loading' : ''}`;
+
+    if (loading) {
+      const spinner = document.createElement('span');
+      spinner.className = 'image-tester__status-spinner';
+      spinner.setAttribute('aria-hidden', 'true');
+      status.appendChild(spinner);
+    }
+
+    const label = document.createElement('span');
+    label.className = 'image-tester__status-label';
+    label.textContent = text;
+    status.appendChild(label);
+
+    return status;
+  }
+
+  /**
+   * Removes the status placeholder from a cell before runtime content is added.
+   * @param {HTMLElement|null} cell - Target table cell.
+   * @returns {void}
+   */
+  clearCellStatus(cell) {
+    cell?.querySelectorAll('.image-tester__status').forEach((status) => status.remove());
   }
 
   /**
@@ -187,7 +274,7 @@ export default class ImageTesterView extends TestCaseView {
   _mergeCanvases(wrapper) {
     if (!wrapper) return null;
     const canvases = wrapper.querySelectorAll('canvas');
-    if (!canvases || canvases.length < 2) return null;
+    if (!canvases || canvases.length === 0) return null;
 
     const target = document.createElement('canvas');
     target.width = canvases[0].width;
@@ -208,7 +295,10 @@ export default class ImageTesterView extends TestCaseView {
       targetCell = this.getExpectedCell();
     }
 
-    if (targetCell) targetCell.appendChild(canvasWrapper);
+    if (targetCell) {
+      this.clearCellStatus(targetCell);
+      targetCell.appendChild(canvasWrapper);
+    }
   }
 
   removeCanvas() {

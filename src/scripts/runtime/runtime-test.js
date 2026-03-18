@@ -21,7 +21,7 @@ export const TestRuntimeMixin = (Base) =>
      * @param {object} options - Runtime options
      */
     constructor(resizeActionHandler, solutionCode, codeTester, options) {
-      super(resizeActionHandler, options);
+      super(resizeActionHandler, solutionCode, options);
       this.solutionCode = solutionCode;
       this.codeTester = codeTester;
       this.type = 'Test runtime';
@@ -52,8 +52,17 @@ export const TestRuntimeMixin = (Base) =>
     async runSolution() {
       if (!this.codeTester.runSolution) return;
 
+      const testCaseIndex = this.codeTester.session.testCaseIndex;
+      this.codeTester.view?.setExpectedGenerationState?.(testCaseIndex, true);
+
       const solutionRuntime = this.createSolutionRuntime();
-      await solutionRuntime.start(this.codeContainer);
+
+      try {
+        await solutionRuntime.start(this.codeContainer);
+      }
+      finally {
+        this.codeTester.view?.setExpectedGenerationState?.(testCaseIndex, false);
+      }
     }
 
     /**
@@ -65,9 +74,9 @@ export const TestRuntimeMixin = (Base) =>
     /**
      * Handles program output produced during execution.
      * Intended to be overridden by concrete runtimes.
-     * @param {string} text - Output text
+     * @param {string} _text - Output text
      */
-    outputHandler(text) { }
+    outputHandler(_text) { }
 
     /**
      * Called after successful execution of a test case.

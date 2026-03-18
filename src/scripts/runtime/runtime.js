@@ -4,7 +4,6 @@ export class Runtime {
 
   constructor(resizeActionHandler, code, options) {
     this.type = 'Runtime (general)';
-
     this.resizeActionHandler = resizeActionHandler;
     this.isTest = false;
     this.editorConsole = null;
@@ -35,7 +34,6 @@ export class Runtime {
         'Runtime',
       );
     }
-
   }
 
   getRunPage() {
@@ -52,7 +50,7 @@ export class Runtime {
 
   /**
    * Sets the console element
-   * @param editorConsole The console which should be associated with runtime
+   * @param {object} editorConsole The console which should be associated with runtime.
    */
   setConsole(editorConsole) {
     this.editorConsole = editorConsole;
@@ -60,7 +58,6 @@ export class Runtime {
 
   /**
    * Shows a prompt to the user and returns the entered text.
-   *
    * @param {string} promptText  The text that Python passed to input().
    * @returns {Promise<string>}   Resolves with the user's input.
    */
@@ -74,10 +71,25 @@ export class Runtime {
    * Writes output text to the console manager.
    * @param {string} text The text which should be printed by outputHandler.
    */
-  outputHandler(text) {
+  outputHandler(text, _dialog = false) {
     this._consoleManager.write(text);
-    this.codeContainer.getConsoleManageR().showConsole(text);
+    this.codeContainer.getConsoleManager().showConsole(text);
+  }
 
+  /**
+   * Determine whether output popups are disabled in runtime options.
+   * @returns {boolean} True if output popups are disabled.
+   */
+  shouldDisableOutputPopups() {
+    return this.options.disableOutputPopups === true || false;
+  }
+
+  /**
+   * Determine whether output dialogs should be shown for manual runs.
+   * @returns {boolean} True if output popups are enabled.
+   */
+  shouldShowOutputDialog() {
+    return !this.shouldDisableOutputPopups();
   }
 
 
@@ -96,7 +108,7 @@ export class Runtime {
 
   /**
    * Called when runtime encounters an error.
-   * @param {String} error The error as string
+   * @param {string} error The error as string.
    */
   onError(error) {
     console.warn('Error while executing code:\n', error);

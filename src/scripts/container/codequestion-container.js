@@ -1,102 +1,211 @@
+import { getCodeQuestionL10nValue } from '../services/codequestion-l10n';
+
 export default class CodeQuestionContainer extends H5P.CodeContainer {
+
+  getDialogQueue() {
+    if (!this._dialogQueue && typeof H5P?.DialogQueue === 'function') {
+      this._dialogQueue = new H5P.DialogQueue();
+    }
+
+    return this._dialogQueue || null;
+  }
+
+  applyTheme() {
+    super.applyTheme();
+
+    const questionRoot = this.parent.closest('.h5p-codequestion');
+    if (questionRoot) {
+      questionRoot.classList.remove('theme-light', 'theme-dark');
+      questionRoot.classList.add(this.getThemeClassName());
+    }
+  }
 
   async setup() {
     await super.setup();
-    this.getObserverManager().register(
-      'page:code:visible',
-      new H5P.PageShowObserver(
-        this.getPageManager().getPage('code'),
-        () => this.showCodePage()
-      )
-    );
+  }
 
-    this.getObserverManager().register(
-      'page:code:hidden',
-      new H5P.PageHideObserver(
-        this.getPageManager().getPage('code'),
-        () => this.onHideCodePage()
-      )
+  getUIRegistrations() {
+    return this.mergeUIRegistrations(
+      super.getUIRegistrations(),
+      {
+        buttons: [
+          {
+            identifier: 'fullscreenEnable',
+            label: '',
+            icon: 'fa-solid fa-maximize',
+            class: 'fullscreenenable',
+            weight: 9,
+          },
+          {
+            identifier: 'fullscreenDisable',
+            label: '',
+            icon: 'fa-solid fa-down-left-and-up-right-to-center',
+            class: 'fullscreendisable',
+            state: 'hidden',
+            weight: 9,
+          },
+          {
+            when: 'hasInstructionsPage',
+            identifier: 'instructions',
+            label: () => getCodeQuestionL10nValue(this.l10n, 'instructions'),
+            icon: 'fa-solid fa-note-sticky',
+            class: 'instructions',
+            weight: 1,
+          },
+          {
+            when: 'hasImagesPage',
+            identifier: 'images',
+            label: () => this.l10n.images,
+            icon: 'fa-solid fa-image',
+            class: 'images',
+            weight: 1,
+          },
+          {
+            when: 'hasSoundsPage',
+            identifier: 'sounds',
+            label: () => this.l10n.sounds,
+            icon: 'fa-solid fa-music',
+            class: 'sounds',
+            weight: 1,
+          },
+        ],
+        pages: [
+          {
+            when: 'hasInstructionsPage',
+            name: 'instructions',
+            content: () => this.getInstructionsManager().getDOM(),
+            additionalClass: 'instructions',
+            front: true,
+            visible: false,
+          },
+          {
+            when: 'hasImagesPage',
+            name: 'images',
+            content: () => this.getImageManager().getDOM(),
+            additionalClass: 'images',
+            visible: false,
+          },
+          {
+            when: 'hasSoundsPage',
+            name: 'sounds',
+            content: () => this.getSoundManager().getDOM(),
+            additionalClass: 'sounds',
+            visible: false,
+          },
+        ],
+        observers: [
+          {
+            name: 'page:code:visible',
+            type: 'page-show',
+            page: 'code',
+            callback: 'showCodePage',
+          },
+          {
+            name: 'page:code:hidden',
+            type: 'page-hide',
+            page: 'code',
+            callback: 'onHideCodePage',
+          },
+          {
+            name: 'button:showCode',
+            type: 'button-click',
+            button: 'showCodeButton',
+            callback: 'showCodePage',
+          },
+          {
+            name: 'button:run:clicked',
+            type: 'button-click',
+            button: 'runButton',
+            callback: 'run',
+          },
+          {
+            name: 'button:stop:clicked',
+            type: 'button-click',
+            button: 'stopButton',
+            callback: 'stop',
+          },
+          {
+            name: 'button:fullscreen:enable',
+            type: 'button-click',
+            button: 'fullscreenEnable',
+            callback: 'enableFullscreen',
+          },
+          {
+            name: 'button:fullscreen:disable',
+            type: 'button-click',
+            button: 'fullscreenDisable',
+            callback: 'disableFullscreen',
+          },
+          {
+            when: 'hasStorageButtons',
+            name: 'button:save:clicked',
+            type: 'button-click',
+            button: 'saveButton',
+            callback: 'save',
+          },
+          {
+            when: 'hasStorageButtons',
+            name: 'button:load:clicked',
+            type: 'button-click',
+            button: 'loadButton',
+            callback: 'load',
+          },
+          {
+            when: 'hasInstructionsPage',
+            name: 'button:instructions:clicked',
+            type: 'button-click',
+            button: 'instructions',
+            callback: 'showInstructionsPage',
+          },
+          {
+            when: 'hasImagesPage',
+            name: 'button:images:clicked',
+            type: 'button-click',
+            button: 'images',
+            callback: 'showImagesPage',
+          },
+          {
+            when: 'hasSoundsPage',
+            name: 'button:sounds:clicked',
+            type: 'button-click',
+            button: 'sounds',
+            callback: 'showSoundsPage',
+          },
+          {
+            name: 'state:run:hideRunButton',
+            type: 'state-run',
+            callback: 'hideRunButton',
+          },
+          {
+            name: 'state:run:showStopButton',
+            type: 'state-run',
+            callback: 'showStopButton',
+          },
+          {
+            name: 'state:stop:showRunButton',
+            type: 'state-stop',
+            callback: 'showRunButton',
+          },
+          {
+            name: 'state:stop:hideStopButton',
+            type: 'state-stop',
+            callback: 'hideStopButton',
+          },
+        ],
+      },
     );
+  }
 
-    // Button click observers
-    this.getObserverManager().register(
-      'button:showCode',
-      new H5P.ButtonClickedObserver(
-        this.getButtonManager().getButton('showCodeButton'),
-        () => this.showCodePage()
-      )
-    );
+  hasInstructionsPage() {
+    return this.getInstructionsManager().getDOM() !== null;
+  }
 
-    this.getObserverManager().register(
-      'button:run:clicked',
-      new H5P.ButtonClickedObserver(
-        this.getButtonManager().getButton('runButton'),
-        () => this.run()
-      )
-    );
+  hasImagesPage() {
+    return this.getImageManager().isEnabled();
+  }
 
-    this.getObserverManager().register(
-      'button:stop:clicked',
-      new H5P.ButtonClickedObserver(
-        this.getButtonManager().getButton('stopButton'),
-        () => {
-          this._runtime?.stop();
-          this.getPageManager().showPage('code');
-        }
-      )
-    );
-
-    this.getObserverManager().register(
-      'button:save:clicked',
-      new H5P.ButtonClickedObserver(
-        this.getButtonManager().getButton('saveButton'),
-        () => this.save()
-      )
-    );
-
-    this.getObserverManager().register(
-      'button:load:clicked',
-      new H5P.ButtonClickedObserver(
-        this.getButtonManager().getButton('loadButton'),
-        () => this.load()
-      )
-    );
-
-    // State observers
-    this.getObserverManager().register(
-      'state:run:hideRunButton',
-      new H5P.StateRunObserver(
-        this.getStateManager(),
-        () => this.hideRunButton()
-      )
-    );
-
-    this.getObserverManager().register(
-      'state:run:showStopButton',
-      new H5P.StateRunObserver(
-        this.getStateManager(),
-        () => {
-          this.showStopButton();
-        }
-      )
-    );
-
-    this.getObserverManager().register(
-      'state:stop:showRunButton',
-      new H5P.StateStopObserver(
-        this.getStateManager(),
-        () => this.showRunButton()
-      )
-    );
-
-    this.getObserverManager().register(
-      'state:stop:hideStopButton',
-      new H5P.StateStopObserver(
-        this.getStateManager(),
-        () => this.hideStopButton()
-      )
-    );
-    this.registerDOM();
+  hasSoundsPage() {
+    return this.getSoundManager().isEnabled();
   }
 
   /**
@@ -131,12 +240,81 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     this.getButtonManager().showButton('showCodeButton');
   }
 
+  showInstructionsPage() {
+    this.getPageManager().showPage('instructions');
+  }
+
+  showImagesPage() {
+    this.getPageManager().showPage('images');
+    this.getButtonManager().setActive('images');
+  }
+
+  showSoundsPage() {
+    this.getPageManager().showPage('sounds');
+    this.getButtonManager().setActive('sounds');
+  }
+
   save() {
     this.getStorageManager().downloadCode();
   }
 
-  load() {
-    this.getStorageManager().loadFile();
+  getLoadErrorMessage(error) {
+    switch (error?.code) {
+      case 'load_invalid_project_bundle':
+      case 'load_project_apply_failed':
+        return this.l10n.loadInvalidProjectBundle;
+      case 'load_unsupported_file_type':
+        return this.l10n.loadUnsupportedFileType;
+      case 'load_read_failed':
+        return this.l10n.loadReadError;
+      default:
+        return this.l10n.loadFailedMessage;
+    }
+  }
+
+  async showLoadError(error) {
+    console.error('[CodeQuestionContainer] Load failed.', error);
+
+    const dialogQueue = this.getDialogQueue();
+    const message = this.getLoadErrorMessage(error);
+
+    if (!dialogQueue) {
+      if (typeof window?.alert === 'function') {
+        window.alert(message);
+      }
+      return;
+    }
+
+    await dialogQueue.enqueueAlert({
+      title: this.l10n.loadFailedTitle,
+      text: message,
+      confirmButtonText: 'OK',
+      showCancelButton: false,
+    });
+  }
+
+  async load() {
+    try {
+      const loaded = await this.getStorageManager().loadFile();
+
+      if (!loaded) {
+        return false;
+      }
+
+      this.stop();
+      this.reset();
+      this.getCanvasManager()?.removeCanvas?.();
+      this.showCodePage();
+      this.hideStopButton();
+      this.showRunButton();
+      this.updateCanvasButton?.();
+
+      return true;
+    }
+    catch (error) {
+      await this.showLoadError(error);
+      return false;
+    }
   }
 
   /**
@@ -236,7 +414,49 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     this.getButtonManager().showButton('stopButton');
   }
 
+  enableFullscreen() {
 
+    this.setFullscreen();
+  }
 
+  disableFullscreen() {
+    this.unsetFullscreen();
+  }
+
+  setFullscreen() {
+    this.getButtonManager().hideButton('fullscreenEnable');
+    this.getButtonManager().showButton('fullscreenDisable');
+    this.fullscreen = true;
+    const fullscreenHost = this.containerDiv.parentNode.parentNode;
+    fullscreenHost.classList.add('fullscreen', 'codequestion-fullscreen-host');
+    fullscreenHost.classList.remove('theme-light', 'theme-dark');
+    fullscreenHost.classList.add(this.getThemeClassName());
+
+    const h5pContainer = this.parent.closest('.h5p-container') ?? document.querySelector('.h5p-container');
+    h5pContainer?.classList.remove('theme-light', 'theme-dark');
+    h5pContainer?.classList.add(this.getThemeClassName());
+
+    H5P.fullScreen(H5P.jQuery(h5pContainer), H5P.instances[0]);
+  }
+
+  unsetFullscreen(options = {}) {
+    const { skipNativeExit = false } = options;
+
+    this.getButtonManager().hideButton('fullscreenDisable');
+    this.getButtonManager().showButton('fullscreenEnable');
+    this.fullscreen = false;
+    const fullscreenHost = this.containerDiv.parentNode.parentNode;
+    fullscreenHost.classList.remove('fullscreen', 'codequestion-fullscreen-host', 'theme-light', 'theme-dark');
+
+    const h5pContainer = this.parent.closest('.h5p-container') ?? document.querySelector('.h5p-container');
+    h5pContainer?.classList.remove('theme-light', 'theme-dark');
+
+    this.getEditorManager().restoreDynamicHeight();
+    this.getConsoleManager().restoreConsoleHeight();
+
+    if (!skipNativeExit && typeof H5P.exitFullScreen === 'function') {
+      H5P.exitFullScreen();
+    }
+  }
 
 }

@@ -13,7 +13,7 @@ export default class TestSession {
      * All test cases belonging to this session.
      * @type {object[]}
      */
-    this.testcases = testcases;
+    this.testcases = Array.isArray(testcases) ? testcases : [];
 
     /**
      * Index of the currently active test case.
@@ -79,7 +79,7 @@ export default class TestSession {
   getInput() {
     const testCase = this.testcases[this.testCaseIndex];
 
-    if (this.inputIndex >= testCase.inputs.length) {
+    if (!testCase || !Array.isArray(testCase.inputs) || this.inputIndex >= testCase.inputs.length) {
       throw new Error('No more input for testcase');
     }
 

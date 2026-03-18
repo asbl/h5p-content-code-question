@@ -12,16 +12,20 @@ export default class CodeTester {
     dueDate,
     enableDueDate,
   ) {
-    if ((this.testcases = null))
+    const normalizedTestcases = Array.isArray(testcases) ? testcases : [];
+
+    if (!Array.isArray(testcases)) {
       console.error('No Testcases are defined for CodeTester');
-    this.testcases = testcases;
+    }
+
+    this.testcases = normalizedTestcases;
     this.gradingMethod = gradingMethod;
     this.onEvaluateTest = onEvaluateTest;
     this.runtimeFactory = runtimeFactory;
     this.l10n = l10n;
     this.dueDate = dueDate;
     this.enableDueDate = enableDueDate;
-    this.session = this.sessionFactory(testcases);
+    this.session = this.sessionFactory(this.testcases);
     this.results = this.resultFactory();
     this.comparator = this.comparatorFactory();
     this.view = this.viewFactory();
