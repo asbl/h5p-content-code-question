@@ -89,4 +89,135 @@ describe('CodeQuestionContainer load workflow', () => {
     expect(consoleError).toHaveBeenCalled();
     expect(instance.stop).not.toHaveBeenCalled();
   });
+
+  it('uses the current h5pInstance for fullscreen instead of the first global instance', () => {
+    const instance = Object.create(CodeQuestionContainer.prototype);
+    const h5pContainer = document.createElement('div');
+    h5pContainer.className = 'h5p-container';
+    const fullscreenHost = document.createElement('div');
+    const parent = document.createElement('div');
+    const containerDiv = document.createElement('div');
+    parent.appendChild(containerDiv);
+    fullscreenHost.appendChild(parent);
+    h5pContainer.appendChild(fullscreenHost);
+
+    const targetInstance = { id: 'target' };
+    const wrongInstance = { id: 'wrong' };
+    const hideButton = vi.fn();
+    const showButton = vi.fn();
+
+    Object.assign(instance, {
+      parent,
+      containerDiv,
+      h5pInstance: targetInstance,
+      fullscreen: false,
+      getThemeClassName: () => 'theme-dark',
+      getButtonManager: () => ({ hideButton, showButton }),
+    });
+
+    H5P.jQuery = vi.fn((element) => ({ element }));
+    H5P.fullScreen = vi.fn();
+    H5P.instances = [wrongInstance];
+
+    const result = instance.setFullscreen();
+
+    expect(result).toBe(true);
+    expect(H5P.fullScreen).toHaveBeenCalledWith(H5P.jQuery(h5pContainer), targetInstance);
+    expect(hideButton).toHaveBeenCalledWith('fullscreenEnable');
+    expect(showButton).toHaveBeenCalledWith('fullscreenDisable');
+    expect(instance.fullscreen).toBe(true);
+    expect(fullscreenHost.classList.contains('fullscreen')).toBe(true);
+  });
+
+  it('resolves the fullscreen instance from H5P.instances when no explicit h5pInstance is set', () => {
+    const instance = Object.create(CodeQuestionContainer.prototype);
+    const h5pContainer = document.createElement('div');
+    h5pContainer.className = 'h5p-container';
+    const fullscreenHost = document.createElement('div');
+    const parent = document.createElement('div');
+    const containerDiv = document.createElement('div');
+    parent.appendChild(containerDiv);
+    fullscreenHost.appendChild(parent);
+    h5pContainer.appendChild(fullscreenHost);
+
+    const matchedInstance = { $container: [h5pContainer] };
+    const otherContainer = document.createElement('div');
+    const wrongInstance = { $container: [otherContainer] };
+
+    Object.assign(instance, {
+      parent,
+      containerDiv,
+      fullscreen: false,
+      getThemeClassName: () => 'theme-dark',
+      getButtonManager: () => ({ hideButton: vi.fn(), showButton: vi.fn() }),
+    });
+
+    H5P.jQuery = vi.fn((element) => ({ element }));
+    H5P.fullScreen = vi.fn();
+    H5P.instances = [wrongInstance, matchedInstance];
+
+    const result = instance.setFullscreen();
+
+    expect(result).toBe(true);
+    expect(H5P.fullScreen).toHaveBeenCalledWith(H5P.jQuery(h5pContainer), matchedInstance);
+  });
+
+  it('aborts fullscreen gracefully when no local h5p container can be resolved', () => {
+    const instance = Object.create(CodeQuestionContainer.prototype);
+    const fullscreenHost = document.createElement('div');
+    const parent = document.createElement('div');
+    const containerDiv = document.createElement('div');
+    parent.appendChild(containerDiv);
+    fullscreenHost.appendChild(parent);
+
+    const hideButton = vi.fn();
+    const showButton = vi.fn();
+
+    Object.assign(instance, {
+      parent,
+      containerDiv,
+      h5pInstance: { id: 'target' },
+      fullscreen: false,
+      getThemeClassName: () => 'theme-dark',
+      getButtonManager: () => ({ hideButton, showButton }),
+    });
+
+    H5P.jQuery = vi.fn((element) => ({ element }));
+    H5P.fullScreen = vi.fn();
+    H5P.instances = [{ id: 'wrong' }];
+
+    const result = instance.setFullscreen();
+
+    expect(result).toBe(false);
+    expect(H5P.fullScreen).not.toHaveBeenCalled();
+    expect(hideButton).not.toHaveBeenCalled();
+    expect(showButton).not.toHaveBeenCalled();
+    expect(instance.fullscreen).toBe(false);
+  });
+
+  it('unsets fullscreen without throwing when the host/container is missing', () => {
+    const instance = Object.create(CodeQuestionContainer.prototype);
+    const hideButton = vi.fn();
+    const showButton = vi.fn();
+    const restoreDynamicHeight = vi.fn();
+    const restoreConsoleHeight = vi.fn();
+
+    Object.assign(instance, {
+      parent: document.createElement('div'),
+      containerDiv: document.createElement('div'),
+      fullscreen: true,
+      getButtonManager: () => ({ hideButton, showButton }),
+      getEditorManager: () => ({ restoreDynamicHeight }),
+      getConsoleManager: () => ({ restoreConsoleHeight }),
+    });
+
+    H5P.exitFullScreen = vi.fn();
+
+    expect(() => instance.unsetFullscreen()).not.toThrow();
+    expect(H5P.exitFullScreen).toHaveBeenCalledTimes(1);
+    expect(hideButton).toHaveBeenCalledWith('fullscreenDisable');
+    expect(showButton).toHaveBeenCalledWith('fullscreenEnable');
+    expect(restoreDynamicHeight).toHaveBeenCalledTimes(1);
+    expect(restoreConsoleHeight).toHaveBeenCalledTimes(1);
+  });
 });

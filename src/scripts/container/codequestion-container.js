@@ -423,32 +423,70 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     this.unsetFullscreen();
   }
 
+  getFullscreenHost() {
+    return this.containerDiv?.parentNode?.parentNode || null;
+  }
+
+  getH5PContainer() {
+    return this.parent?.closest?.('.h5p-container') || null;
+  }
+
+  getFullscreenInstance(h5pContainer) {
+    if (this.h5pInstance) {
+      return this.h5pInstance;
+    }
+
+    const instances = Array.isArray(H5P?.instances) ? H5P.instances : [];
+
+    return instances.find((instance) => {
+      const candidateContainer = instance?.$container?.[0]
+        || instance?.$container?.get?.(0)
+        || instance?.container?.[0]
+        || instance?.container
+        || null;
+
+      return candidateContainer === h5pContainer;
+    }) || null;
+  }
+
   setFullscreen() {
+    const fullscreenHost = this.getFullscreenHost();
+    const h5pContainer = this.getH5PContainer();
+    const fullscreenInstance = this.getFullscreenInstance(h5pContainer);
+
+    if (!fullscreenHost
+      || !h5pContainer
+      || !fullscreenInstance
+      || typeof H5P?.fullScreen !== 'function'
+      || typeof H5P?.jQuery !== 'function') {
+      return false;
+    }
+
     this.getButtonManager().hideButton('fullscreenEnable');
     this.getButtonManager().showButton('fullscreenDisable');
     this.fullscreen = true;
-    const fullscreenHost = this.containerDiv.parentNode.parentNode;
     fullscreenHost.classList.add('fullscreen', 'codequestion-fullscreen-host');
     fullscreenHost.classList.remove('theme-light', 'theme-dark');
     fullscreenHost.classList.add(this.getThemeClassName());
 
-    const h5pContainer = this.parent.closest('.h5p-container') ?? document.querySelector('.h5p-container');
     h5pContainer?.classList.remove('theme-light', 'theme-dark');
     h5pContainer?.classList.add(this.getThemeClassName());
 
-    H5P.fullScreen(H5P.jQuery(h5pContainer), H5P.instances[0]);
+    H5P.fullScreen(H5P.jQuery(h5pContainer), fullscreenInstance);
+
+    return true;
   }
 
   unsetFullscreen(options = {}) {
     const { skipNativeExit = false } = options;
+    const fullscreenHost = this.getFullscreenHost();
+    const h5pContainer = this.getH5PContainer();
 
     this.getButtonManager().hideButton('fullscreenDisable');
     this.getButtonManager().showButton('fullscreenEnable');
     this.fullscreen = false;
-    const fullscreenHost = this.containerDiv.parentNode.parentNode;
-    fullscreenHost.classList.remove('fullscreen', 'codequestion-fullscreen-host', 'theme-light', 'theme-dark');
+    fullscreenHost?.classList.remove('fullscreen', 'codequestion-fullscreen-host', 'theme-light', 'theme-dark');
 
-    const h5pContainer = this.parent.closest('.h5p-container') ?? document.querySelector('.h5p-container');
     h5pContainer?.classList.remove('theme-light', 'theme-dark');
 
     this.getEditorManager().restoreDynamicHeight();
