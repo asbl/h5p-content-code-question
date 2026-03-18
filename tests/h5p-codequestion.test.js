@@ -182,4 +182,25 @@ describe('CodeQuestion', () => {
     expect(question.codeContainer).toBeNull();
     expect(question.codeContainers.size).toBe(0);
   });
+
+  it('exposes a direct destroy() teardown entrypoint', () => {
+    const question = new CodeQuestion({}, 1);
+    const assignmentContainer = { destroy: vi.fn() };
+    const inlineContainerA = { destroy: vi.fn() };
+    const inlineContainerB = { destroy: vi.fn() };
+
+    question.codeContainer = assignmentContainer;
+    question.codeContainerParent = document.createElement('div');
+    question.codeContainers.set('inline-a', inlineContainerA);
+    question.codeContainers.set('inline-b', inlineContainerB);
+
+    question.destroy();
+
+    expect(assignmentContainer.destroy).toHaveBeenCalledTimes(1);
+    expect(inlineContainerA.destroy).toHaveBeenCalledTimes(1);
+    expect(inlineContainerB.destroy).toHaveBeenCalledTimes(1);
+    expect(question.codeContainer).toBeNull();
+    expect(question.codeContainerParent).toBeNull();
+    expect(question.codeContainers.size).toBe(0);
+  });
 });

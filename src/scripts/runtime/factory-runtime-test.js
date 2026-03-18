@@ -1,5 +1,5 @@
 export default class TestRuntimeFactory {
-  constructor(runtimeClass, resizeActionHandler, targetCode, codeTester, options = []) {
+  constructor(runtimeClass, resizeActionHandler, targetCode, codeTester, options = {}) {
     this.resizeActionHandler = resizeActionHandler;
     this.targetCode = targetCode;
     this.codeTester = codeTester;
@@ -20,10 +20,6 @@ export default class TestRuntimeFactory {
    * @returns  {H5P.Runtime} The generated Runtime
    */
   create() {
-    const runtimeOptions = {
-      shouldStop: () => this.question.shouldStop(),
-    };
-
     const RuntimeClass = this.getRuntimeClass();
 
     const code = this.targetCode || '';
@@ -31,11 +27,7 @@ export default class TestRuntimeFactory {
       this.resizeActionHandler,
       code,
       this.codeTester,
-      this.options
+      this.options,
     );
-  }
-
-  setup(codeContainer) {
-    super.setup(codeContainer);
   }
 }
