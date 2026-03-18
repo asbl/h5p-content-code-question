@@ -355,7 +355,7 @@ export default class CodeQuestion extends H5P.Question {
     return ContainerFactory;
   }
 
-  getContainerFactory(parent, code, isAssignmentContainer) {
+  getContainerFactory(parent, code, isAssignmentContainer, contentParams = null) {
     const runtimeFactory = this.getManualRuntimeFactory();
     const FactoryClass = this.getContainerFactoryClass();
 
@@ -375,7 +375,7 @@ export default class CodeQuestion extends H5P.Question {
       () => this.resizeActionHandler(),
       runtimeFactory,
       this,
-      this.getCodeContainerOptions()
+      this.getCodeContainerOptions(contentParams)
     );
   }
 
@@ -383,7 +383,7 @@ export default class CodeQuestion extends H5P.Question {
    * Returns shared container options for the code container.
    * @returns {object|Array<*>} Container options.
    */
-  getCodeContainerOptions() {
+  getCodeContainerOptions(contentParams = null) { // eslint-disable-line no-unused-vars
     return [];
   }
 
@@ -621,6 +621,7 @@ export default class CodeQuestion extends H5P.Question {
         editorWrapper,
         this.getDecodedCode(content.code),
         false,
+        content,
       );
       const codeContainer = factory.create();
       container.append(codeContainer.getDOM());
