@@ -62,4 +62,49 @@ describe('TestRuntimeFactory constructor compatibility', () => {
       options,
     ]);
   });
+
+  it('passes codeTester to classes that inherit a four-argument constructor', () => {
+    class FourArgBaseRuntime {
+      constructor(resizeActionHandler, code, codeTester, options) {
+        FourArgBaseRuntime.lastArgs = [
+          resizeActionHandler,
+          code,
+          codeTester,
+          options,
+        ];
+      }
+    }
+
+    class DerivedRuntime extends FourArgBaseRuntime {
+      async runSolution() {}
+
+      createSolutionRuntime() {
+        return null;
+      }
+    }
+
+    const resizeActionHandler = () => {};
+    const codeTester = { name: 'tester' };
+    const options = { l10n: { run: 'Run' } };
+
+    // DerivedRuntime.length is 0 because it has no explicit constructor.
+    expect(DerivedRuntime.length).toBe(0);
+
+    const factory = new TestRuntimeFactory(
+      DerivedRuntime,
+      resizeActionHandler,
+      'print(3)',
+      codeTester,
+      options,
+    );
+
+    factory.create();
+
+    expect(FourArgBaseRuntime.lastArgs).toEqual([
+      resizeActionHandler,
+      'print(3)',
+      codeTester,
+      options,
+    ]);
+  });
 });

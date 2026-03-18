@@ -23,7 +23,11 @@ export default class TestRuntimeFactory {
     const RuntimeClass = this.getRuntimeClass();
 
     const code = this.targetCode || '';
-    if (RuntimeClass.length >= 4) {
+    const needsCodeTester = RuntimeClass.length >= 4
+      || typeof RuntimeClass?.prototype?.runSolution === 'function'
+      || typeof RuntimeClass?.prototype?.createSolutionRuntime === 'function';
+
+    if (needsCodeTester) {
       return new RuntimeClass(
         this.resizeActionHandler,
         code,
