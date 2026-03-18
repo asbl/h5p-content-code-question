@@ -291,8 +291,8 @@
 .h5p-semi-fullscreen .h5p-codequestion .codequestion-fullscreen-host .pages,
 .h5p-fullscreen .h5p-codequestion .codequestion-fullscreen-host .pages-wrapper,
 .h5p-semi-fullscreen .h5p-codequestion .codequestion-fullscreen-host .pages-wrapper,
-.h5p-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page-code,
-.h5p-semi-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page-code,
+.h5p-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page-code.active,
+.h5p-semi-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page-code.active,
 .h5p-fullscreen .h5p-codequestion .codequestion-fullscreen-host .container-code,
 .h5p-semi-fullscreen .h5p-codequestion .codequestion-fullscreen-host .container-code {
     display: flex;
@@ -314,12 +314,24 @@
     flex: 1 1 auto;
 }
 
-.h5p-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page-code,
-.h5p-semi-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page-code {
+.h5p-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page-code.active,
+.h5p-semi-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page-code.active {
     display: flex !important;
     flex: 1 1 auto;
     gap: 12px;
     overflow: hidden;
+}
+
+.h5p-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page.active:not(.page-code),
+.h5p-semi-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page.active:not(.page-code) {
+    display: flex !important;
+    flex: 1 1 auto;
+    overflow: auto;
+}
+
+.h5p-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page:not(.active),
+.h5p-semi-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page:not(.active) {
+    display: none !important;
 }
 
 .h5p-fullscreen .h5p-codequestion .codequestion-fullscreen-host .code_container,
