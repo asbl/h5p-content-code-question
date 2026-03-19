@@ -39,6 +39,30 @@ describe('CodeQuestionContainer load workflow', () => {
     expect(instance.updateCanvasButton).toHaveBeenCalledTimes(1);
   });
 
+  it('closes the file manager state when returning to the code page', () => {
+    const instance = Object.create(CodeQuestionContainer.prototype);
+    const closeFileManager = vi.fn();
+    const showPage = vi.fn();
+    const showButton = vi.fn();
+    const hideButton = vi.fn();
+    const setActive = vi.fn();
+
+    instance.getEditorManager = vi.fn(() => ({ closeFileManager }));
+    instance.getPageManager = vi.fn(() => ({ showPage }));
+    instance.getStateManager = vi.fn(() => ({ isRunning: () => false }));
+    instance.getButtonManager = vi.fn(() => ({ showButton, hideButton, setActive }));
+    instance.registerDOM = vi.fn();
+
+    instance.showCodePage();
+
+    expect(closeFileManager).toHaveBeenCalledWith({ skipPageChange: true });
+    expect(showPage).toHaveBeenCalledWith('code');
+    expect(showButton).toHaveBeenCalledWith('runButton');
+    expect(setActive).toHaveBeenCalledWith('runButton');
+    expect(hideButton).toHaveBeenCalledWith('showCodeButton');
+    expect(instance.registerDOM).toHaveBeenCalledTimes(1);
+  });
+
   it('does nothing when loading is cancelled', async () => {
     const instance = Object.create(CodeQuestionContainer.prototype);
     const loadFile = vi.fn().mockResolvedValue(null);

@@ -221,6 +221,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
    * @returns {void}
    */
   showCodePage() {
+    this.getEditorManager?.().closeFileManager?.({ skipPageChange: true });
     this.getPageManager().showPage('code');
     if (!this.getStateManager().isRunning()) {
       this.getButtonManager().showButton('runButton');

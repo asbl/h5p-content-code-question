@@ -37,7 +37,7 @@ export class Runtime {
   }
 
   getRunPage() {
-    return 'show_code';
+    return 'code';
   }
 
   /**

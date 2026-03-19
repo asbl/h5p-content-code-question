@@ -27,6 +27,7 @@ export const ManualRuntimeMixin = (Base) =>
      */
     outputHandler(text, dialog = true) {
       this._consoleManager.write(text);
+      this.codeContainer.getConsoleManager().showConsole();
       if (dialog && this.shouldShowOutputDialog()) {
         this.dialogQueue.enqueueAlert(text);
       }
