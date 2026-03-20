@@ -335,7 +335,8 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
    */
   stop() {
     this._runtime?.stop();
-    this.getPageManager().showPage('code');
+    this.getStateManager().stop();
+    this.showCodePage();
   }
 
   /**

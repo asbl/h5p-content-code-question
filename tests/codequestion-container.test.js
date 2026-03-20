@@ -114,6 +114,37 @@ describe('CodeQuestionContainer load workflow', () => {
     expect(instance.stop).not.toHaveBeenCalled();
   });
 
+  it('stops runtime state and returns to code page on stop', () => {
+    const instance = Object.create(CodeQuestionContainer.prototype);
+    const runtimeStop = vi.fn();
+    const stateStop = vi.fn();
+    const showCodePage = vi.fn();
+
+    instance._runtime = { stop: runtimeStop };
+    instance.getStateManager = vi.fn(() => ({ stop: stateStop }));
+    instance.showCodePage = showCodePage;
+
+    instance.stop();
+
+    expect(runtimeStop).toHaveBeenCalledTimes(1);
+    expect(stateStop).toHaveBeenCalledTimes(1);
+    expect(showCodePage).toHaveBeenCalledTimes(1);
+  });
+
+  it('still resets state and shows code page when runtime is missing', () => {
+    const instance = Object.create(CodeQuestionContainer.prototype);
+    const stateStop = vi.fn();
+    const showCodePage = vi.fn();
+
+    instance.getStateManager = vi.fn(() => ({ stop: stateStop }));
+    instance.showCodePage = showCodePage;
+
+    instance.stop();
+
+    expect(stateStop).toHaveBeenCalledTimes(1);
+    expect(showCodePage).toHaveBeenCalledTimes(1);
+  });
+
   it('uses the current h5pInstance for fullscreen instead of the first global instance', () => {
     const instance = Object.create(CodeQuestionContainer.prototype);
     const h5pContainer = document.createElement('div');

@@ -113,7 +113,14 @@ export class Runtime {
   onError(error) {
     console.warn('Error while executing code:\n', error);
     this._consoleManager.write(error, '!>');
-    this.codeContainer.getPageManager().showPage('code');
+    this.codeContainer?.getStateManager?.().stop?.();
+
+    if (typeof this.codeContainer?.showCodePage === 'function') {
+      this.codeContainer.showCodePage();
+      return;
+    }
+
+    this.codeContainer?.getPageManager?.().showPage('code');
   }
 
   /**
@@ -130,10 +137,9 @@ export class Runtime {
    * Stops the currently running code.
    */
   stop() {
-    const stopped = this.runner.stop();
-    if (stopped) {
-      this.codeContainer.getStateManager().stop();
-    }
+    const stopped = this.runner?.stop?.();
+    this.codeContainer?.getStateManager?.().stop?.();
+    return stopped !== false;
   }
 
   /**
