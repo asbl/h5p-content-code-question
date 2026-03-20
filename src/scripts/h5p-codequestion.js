@@ -84,12 +84,12 @@ export default class CodeQuestion extends H5P.Question {
       this.solutionCode = params.gradingSettings.solution;
     }
     this.dueDate = params.gradingSettings?.dueDateGroup?.duedate || null;
-    this.enableDueDate = params.gradingSettings?.dueDateGroup?.enableDueDate | null;
+    this.enableDueDate = params.gradingSettings?.dueDateGroup?.enableDueDate === true;
 
     this.codeTester = this.getCodeTesterFactory().create();
 
     // ---- UI flags -------------------------------------------------------
-    this.hasConsole = true;
+    this.hasConsole = params.editorSettings?.showConsole !== false;
     this.hasRunButton = true;
     this.hasCheckButton = true;
     this.hasStopButton = true;
@@ -384,7 +384,9 @@ export default class CodeQuestion extends H5P.Question {
    * @returns {object|Array<*>} Container options.
    */
   getCodeContainerOptions(contentParams = null) { // eslint-disable-line no-unused-vars
-    return [];
+    return {
+      hasConsole: this.hasConsole,
+    };
   }
 
   getCodeTesterFactoryClass() {

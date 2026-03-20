@@ -94,6 +94,28 @@ describe('CodeQuestion', () => {
     });
   });
 
+  it('normalizes showConsole and enableDueDate flags from params', () => {
+    const questionHiddenConsole = new CodeQuestion({
+      editorSettings: {
+        showConsole: false,
+      },
+      gradingSettings: {
+        dueDateGroup: {
+          enableDueDate: true,
+        },
+      },
+    }, 1);
+
+    expect(questionHiddenConsole.hasConsole).toBe(false);
+    expect(questionHiddenConsole.enableDueDate).toBe(true);
+    expect(questionHiddenConsole.getCodeContainerOptions()).toEqual({ hasConsole: false });
+
+    const questionDefaultConsole = new CodeQuestion({}, 2);
+    expect(questionDefaultConsole.hasConsole).toBe(true);
+    expect(questionDefaultConsole.enableDueDate).toBe(false);
+    expect(questionDefaultConsole.getCodeContainerOptions()).toEqual({ hasConsole: true });
+  });
+
   it('uses the CodeMirror-compatible reset path in resetTask', () => {
     const question = new CodeQuestion({}, 1);
     const setCode = vi.fn();
