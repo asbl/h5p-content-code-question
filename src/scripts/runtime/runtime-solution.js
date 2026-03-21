@@ -52,7 +52,9 @@ export const SolutionRuntimeMixin = (Base) =>
     setup(codeContainer) {
       super.setup(codeContainer);
 
-      const testCaseIndex = this.codeTester.testCaseCounter;
+      const testCaseIndex = this.codeTester?.session?.testCaseIndex
+        ?? this.codeTester?.testCaseCounter
+        ?? 0;
       if (this.solutions[testCaseIndex] === true) return;
 
       this.solutions[testCaseIndex] = true;
@@ -79,7 +81,9 @@ export const SolutionRuntimeMixin = (Base) =>
      * @returns {Promise<string>} Input value for the current test case
      */
     async inputHandler() {
-      return Promise.resolve(this.codeTester.session.getInput());
+      const result = Promise.resolve(this.codeTester.session.getInput());
+      Promise.resolve(this.codeTester.session.nextInput());
+      return result;
     }
 
     async start(codeContainer) {

@@ -56,6 +56,32 @@ describe('CodeQuestion', () => {
     });
   });
 
+  it('treats placeholder grading selection as disabled grading', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'please_choose',
+      },
+    }, 1);
+
+    expect(question.gradingMethod).toBeNull();
+    expect(question.codeTester).toBeNull();
+    expect(question.getScore()).toBe(0);
+    expect(mocks.createTester).not.toHaveBeenCalled();
+  });
+
+  it('disables grading safely if the grading method is unsupported', () => {
+    mocks.createTester.mockReturnValueOnce(null);
+
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'unsupportedMethod',
+      },
+    }, 1);
+
+    expect(question.gradingMethod).toBeNull();
+    expect(question.codeTester).toBeNull();
+  });
+
   it('derives localized feedback text and applies score feedback consistently', () => {
     const question = new CodeQuestion({
       l10n: {

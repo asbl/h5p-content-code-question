@@ -68,9 +68,12 @@ export default class CodeQuestion extends H5P.Question {
     this.postCode = params.editorSettings.postCode || null;
 
     // ---- Grading defaults -----------------------------------------------
+    const gradingMethod = params.gradingSettings?.gradingMethod;
     this.gradingMethod =
-      params.gradingSettings.gradingMethod !== 'none'
-        ? params.gradingSettings.gradingMethod
+      gradingMethod
+      && gradingMethod !== 'none'
+      && gradingMethod !== 'please_choose'
+        ? gradingMethod
         : null;
     this.testcases = params.gradingSettings.testCases || [];
 
@@ -86,7 +89,14 @@ export default class CodeQuestion extends H5P.Question {
     this.dueDate = params.gradingSettings?.dueDateGroup?.duedate || null;
     this.enableDueDate = params.gradingSettings?.dueDateGroup?.enableDueDate === true;
 
-    this.codeTester = this.getCodeTesterFactory().create();
+    this.codeTester = this.gradingMethod
+      ? this.getCodeTesterFactory().create()
+      : null;
+
+    // If grading method is unsupported, disable grading safely.
+    if (this.gradingMethod && !this.codeTester) {
+      this.gradingMethod = null;
+    }
 
     // ---- UI flags -------------------------------------------------------
     this.hasConsole = params.editorSettings?.showConsole !== false;
@@ -308,6 +318,10 @@ export default class CodeQuestion extends H5P.Question {
    * event after the test run.
    */
   async checkAction() {
+    if (!this.codeTester) {
+      return;
+    }
+
     this.resetStopSignal();
 
     // Start a new attempt
@@ -701,6 +715,10 @@ export default class CodeQuestion extends H5P.Question {
   }
 
   getScore() {
+    if (!this.codeTester || typeof this.codeTester.getScore !== 'function') {
+      return 0;
+    }
+
     let score = this.codeTester.getScore() * 2;
     if (this.isLateSubmission()) {
       // After due date maximum of 1 point
@@ -741,7 +759,7 @@ export default class CodeQuestion extends H5P.Question {
     }
 
     this.resetStopSignal();
-    this.codeTester.reset();
+    this.codeTester?.reset?.();
     this.codeContainer?.reset?.();
     this.resizeActionHandler();
   }

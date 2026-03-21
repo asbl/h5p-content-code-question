@@ -29,6 +29,7 @@ describe('CodeTester core edge cases', () => {
     expect(tester.testcases).toEqual([]);
     expect(tester.session.countTestCases()).toBe(0);
     expect(tester.results.getMaxScore()).toBe(0);
+    expect(tester.getScore()).toBe(0);
 
     errorSpy.mockRestore();
   });
