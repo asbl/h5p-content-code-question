@@ -221,7 +221,9 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
    * @returns {void}
    */
   showCodePage() {
+    const wasOnCodePage = this.getPageManager().activePageName === 'code';
     this.getEditorManager?.().closeFileManager?.({ skipPageChange: true });
+    this._runtime?.runner?.releaseInputFocus?.();
     this.getPageManager().showPage('code');
     if (!this.getStateManager().isRunning()) {
       this.getButtonManager().showButton('runButton');
@@ -229,7 +231,22 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
 
     this.getButtonManager().setActive('runButton');
     this.getButtonManager().hideButton('showCodeButton');
-    this.registerDOM();
+    if (!wasOnCodePage) {
+      this.registerDOM();
+    }
+
+    const focusEditor = () => this.getEditorManager?.().focus?.();
+    if (typeof window?.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(focusEditor));
+    }
+    else {
+      focusEditor();
+    }
+
+    if (typeof window?.setTimeout === 'function') {
+      window.setTimeout(focusEditor, 50);
+      window.setTimeout(focusEditor, 200);
+    }
   }
 
   /**

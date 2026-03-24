@@ -46,8 +46,18 @@ describe('CodeQuestionContainer load workflow', () => {
     const showButton = vi.fn();
     const hideButton = vi.fn();
     const setActive = vi.fn();
+    const focus = vi.fn();
+    const releaseInputFocus = vi.fn();
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    const requestAnimationFrame = vi.fn((callback) => {
+      callback();
+      return 1;
+    });
 
-    instance.getEditorManager = vi.fn(() => ({ closeFileManager }));
+    window.requestAnimationFrame = requestAnimationFrame;
+
+    instance._runtime = { runner: { releaseInputFocus } };
+    instance.getEditorManager = vi.fn(() => ({ closeFileManager, focus }));
     instance.getPageManager = vi.fn(() => ({ showPage }));
     instance.getStateManager = vi.fn(() => ({ isRunning: () => false }));
     instance.getButtonManager = vi.fn(() => ({ showButton, hideButton, setActive }));
@@ -55,12 +65,17 @@ describe('CodeQuestionContainer load workflow', () => {
 
     instance.showCodePage();
 
+    window.requestAnimationFrame = originalRequestAnimationFrame;
+
     expect(closeFileManager).toHaveBeenCalledWith({ skipPageChange: true });
+    expect(releaseInputFocus).toHaveBeenCalledTimes(1);
     expect(showPage).toHaveBeenCalledWith('code');
     expect(showButton).toHaveBeenCalledWith('runButton');
     expect(setActive).toHaveBeenCalledWith('runButton');
     expect(hideButton).toHaveBeenCalledWith('showCodeButton');
     expect(instance.registerDOM).toHaveBeenCalledTimes(1);
+    expect(requestAnimationFrame).toHaveBeenCalledTimes(2);
+    expect(focus).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing when loading is cancelled', async () => {
