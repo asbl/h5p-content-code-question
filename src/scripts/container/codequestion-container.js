@@ -64,7 +64,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
             when: 'hasSoundsPage',
             identifier: 'sounds',
             label: () => this.l10n.sounds,
-            icon: 'fa-solid fa-volume-high',
+            icon: 'fa-solid fa-file-audio',
             class: 'sounds',
             weight: 1,
           },
