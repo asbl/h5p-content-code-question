@@ -623,9 +623,27 @@ export default class CodeQuestion extends H5P.Question {
     return container;
   }
 
+  /**
+   * Determines whether an inline content code editor should be shown.
+   * Supports both legacy top-level `showEditor` and nested `options.showEditor`.
+   * @param {object} content - Inline content item params.
+   * @returns {boolean} True if an editor should be rendered.
+   */
+  shouldShowInlineEditor(content = {}) {
+    if (typeof content?.showEditor === 'boolean') {
+      return content.showEditor;
+    }
+
+    if (typeof content?.options?.showEditor === 'boolean') {
+      return content.options.showEditor;
+    }
+
+    return true;
+  }
+
   renderCodeContent(container, content, index) {
     container.classList.add('code');
-    if (!content.showEditor) {
+    if (!this.shouldShowInlineEditor(content)) {
       const md = '```' + this.getCodingLanguage() + '\n' +
         this.getDecodedCode(content.code) + '\n```';
       const markdown = new H5P.Markdown(md);

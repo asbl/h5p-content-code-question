@@ -251,4 +251,61 @@ describe('CodeQuestion', () => {
     expect(question.codeContainerParent).toBeNull();
     expect(question.codeContainers.size).toBe(0);
   });
+
+  it('renders inline code editor when options.showEditor is true', () => {
+    const question = new CodeQuestion({}, 1);
+    const inlineContainer = {
+      getDOM: () => document.createElement('div'),
+    };
+
+    question.getContainerFactory = vi.fn(() => ({
+      create: () => inlineContainer,
+    }));
+
+    const wrapper = document.createElement('div');
+    question.renderCodeContent(wrapper, {
+      id: 'inline-1',
+      code: 'print(1)',
+      options: {
+        showEditor: true,
+      },
+    }, 0);
+
+    expect(question.getContainerFactory).toHaveBeenCalledTimes(1);
+    expect(question.codeContainers.get('inline-1')).toBe(inlineContainer);
+  });
+
+  it('hides inline code editor when options.showEditor is false', () => {
+    const question = new CodeQuestion({}, 1);
+    question.getContainerFactory = vi.fn();
+    const originalMarkdown = H5P.Markdown;
+
+    H5P.Markdown = class MarkdownMock {
+      constructor(markdown) {
+        this.markdown = markdown;
+      }
+
+      getMarkdownDiv() {
+        const pre = document.createElement('pre');
+        pre.textContent = this.markdown;
+        return pre;
+      }
+    };
+
+    const wrapper = document.createElement('div');
+    try {
+      question.renderCodeContent(wrapper, {
+        code: 'print(1)',
+        options: {
+          showEditor: false,
+        },
+      }, 0);
+
+      expect(question.getContainerFactory).not.toHaveBeenCalled();
+      expect(wrapper.querySelector('pre, code')).not.toBeNull();
+    }
+    finally {
+      H5P.Markdown = originalMarkdown;
+    }
+  });
 });
