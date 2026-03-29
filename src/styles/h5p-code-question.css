@@ -329,13 +329,6 @@
     overflow: auto;
 }
 
-.h5p-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page-canvas.active,
-.h5p-semi-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page-canvas.active {
-    display: block !important;
-    width: 100%;
-    overflow: auto;
-}
-
 .h5p-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page:not(.active),
 .h5p-semi-fullscreen .h5p-codequestion .codequestion-fullscreen-host .page:not(.active) {
     display: none !important;
