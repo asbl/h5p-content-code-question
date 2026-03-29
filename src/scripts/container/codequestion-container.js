@@ -442,15 +442,20 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
   }
 
   getFullscreenHost() {
-    return this.containerDiv?.parentNode?.parentNode || null;
+    return this.containerDiv?.parentNode?.parentNode
+      || this.parent?.closest?.('.content-part')
+      || this.parent
+      || null;
   }
 
   getH5PContainer() {
-    return this.parent?.closest?.('.h5p-container') || null;
+    return this.parent?.closest?.('.h5p-container')
+      || document?.querySelector?.('.h5p-container')
+      || null;
   }
 
   getFullscreenInstance(h5pContainer) {
-    if (this.h5pInstance) {
+    if (this.h5pInstance && typeof this.h5pInstance.trigger === 'function') {
       return this.h5pInstance;
     }
 
@@ -464,7 +469,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
         || null;
 
       return candidateContainer === h5pContainer;
-    }) || null;
+    }) || instances[0] || null;
   }
 
   setFullscreen() {
