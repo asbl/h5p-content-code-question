@@ -28,6 +28,15 @@ export class Runtime {
 
   setup(codeContainer) {
     this.codeContainer = codeContainer || null;
+
+    if (this.dialogQueue?.setTarget) {
+      const target = this.codeContainer?.parent?.closest?.('.h5p-codequestion')
+        || this.codeContainer?.parent?.closest?.('.h5p-question')
+        || this.codeContainer?.parent
+        || null;
+      this.dialogQueue.setTarget(target);
+    }
+
     if (this.codeContainer) {
       this._consoleManager ||= new ConsoleRuntimeManager(
         this.codeContainer,

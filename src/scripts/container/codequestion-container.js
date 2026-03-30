@@ -2,9 +2,25 @@ import { getCodeQuestionL10nValue } from '../services/codequestion-l10n';
 
 export default class CodeQuestionContainer extends H5P.CodeContainer {
 
+  getDialogTarget() {
+    if (!this.parent) {
+      return null;
+    }
+
+    return this.parent.closest('.h5p-codequestion')
+      || this.parent.closest('.h5p-question')
+      || this.parent;
+  }
+
   getDialogQueue() {
     if (!this._dialogQueue && typeof H5P?.DialogQueue === 'function') {
-      this._dialogQueue = new H5P.DialogQueue();
+      this._dialogQueue = new H5P.DialogQueue({
+        target: this.getDialogTarget(),
+      });
+    }
+
+    if (this._dialogQueue?.setTarget) {
+      this._dialogQueue.setTarget(this.getDialogTarget());
     }
 
     return this._dialogQueue || null;
