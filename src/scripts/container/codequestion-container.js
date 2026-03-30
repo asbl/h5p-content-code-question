@@ -216,6 +216,89 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
   }
 
   /**
+   * Clears pending deferred editor focus callbacks.
+   * @returns {void}
+   */
+  clearPendingEditorFocus() {
+    if (Array.isArray(this._editorFocusRafIds) && typeof window?.cancelAnimationFrame === 'function') {
+      this._editorFocusRafIds.forEach((id) => window.cancelAnimationFrame(id));
+    }
+
+    if (Array.isArray(this._editorFocusTimeoutIds) && typeof window?.clearTimeout === 'function') {
+      this._editorFocusTimeoutIds.forEach((id) => window.clearTimeout(id));
+    }
+
+    this._editorFocusRafIds = [];
+    this._editorFocusTimeoutIds = [];
+  }
+
+  /**
+   * Returns whether focusing this instance's editor is still safe.
+   * @returns {boolean} True if this instance should own editor focus now.
+   */
+  shouldFocusEditor() {
+    if (this.getPageManager().activePageName !== 'code') {
+      return false;
+    }
+
+    const hasParent = typeof this.parent?.contains === 'function';
+    if (hasParent && this.parent.isConnected === false) {
+      return false;
+    }
+
+    const ownerDocument = this.parent?.ownerDocument || document;
+    const activeElement = ownerDocument?.activeElement;
+
+    if (!activeElement || activeElement === ownerDocument.body) {
+      return true;
+    }
+
+    if (!hasParent) {
+      return true;
+    }
+
+    // Do not steal focus from another instance that has become active.
+    return this.parent.contains(activeElement);
+  }
+
+  /**
+   * Schedules deferred editor focus guarded by page and active-element checks.
+   * @returns {void}
+   */
+  scheduleEditorFocus() {
+    this._editorFocusToken = (this._editorFocusToken || 0) + 1;
+    const token = this._editorFocusToken;
+
+    const focusEditor = () => {
+      if (token !== this._editorFocusToken) {
+        return;
+      }
+
+      if (!this.shouldFocusEditor()) {
+        return;
+      }
+
+      this.getEditorManager?.().focus?.();
+    };
+
+    if (typeof window?.requestAnimationFrame === 'function') {
+      const outerId = window.requestAnimationFrame(() => {
+        const innerId = window.requestAnimationFrame(focusEditor);
+        this._editorFocusRafIds.push(innerId);
+      });
+      this._editorFocusRafIds.push(outerId);
+    }
+    else {
+      focusEditor();
+    }
+
+    if (typeof window?.setTimeout === 'function') {
+      this._editorFocusTimeoutIds.push(window.setTimeout(focusEditor, 50));
+      this._editorFocusTimeoutIds.push(window.setTimeout(focusEditor, 200));
+    }
+  }
+
+  /**
    * Shows the code page.
    * @returns {void}
    */
@@ -234,18 +317,8 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
       this.registerDOM();
     }
 
-    const focusEditor = () => this.getEditorManager?.().focus?.();
-    if (typeof window?.requestAnimationFrame === 'function') {
-      window.requestAnimationFrame(() => window.requestAnimationFrame(focusEditor));
-    }
-    else {
-      focusEditor();
-    }
-
-    if (typeof window?.setTimeout === 'function') {
-      window.setTimeout(focusEditor, 50);
-      window.setTimeout(focusEditor, 200);
-    }
+    this.clearPendingEditorFocus();
+    this.scheduleEditorFocus();
   }
 
   /**
@@ -253,6 +326,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
    * @returns {void}
    */
   onHideCodePage() {
+    this.clearPendingEditorFocus();
     this.getButtonManager().hideButton('runButton');
     this.getButtonManager().showButton('showCodeButton');
   }

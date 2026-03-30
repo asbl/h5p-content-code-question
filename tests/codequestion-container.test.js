@@ -42,7 +42,12 @@ describe('CodeQuestionContainer load workflow', () => {
   it('closes the file manager state when returning to the code page', () => {
     const instance = Object.create(CodeQuestionContainer.prototype);
     const closeFileManager = vi.fn();
-    const showPage = vi.fn();
+    const pageManager = {
+      activePageName: 'canvas',
+      showPage: vi.fn(function showPageImpl(pageName) {
+        this.activePageName = pageName;
+      }),
+    };
     const showButton = vi.fn();
     const hideButton = vi.fn();
     const setActive = vi.fn();
@@ -58,7 +63,7 @@ describe('CodeQuestionContainer load workflow', () => {
 
     instance._runtime = { runner: { releaseInputFocus } };
     instance.getEditorManager = vi.fn(() => ({ closeFileManager, focus }));
-    instance.getPageManager = vi.fn(() => ({ showPage }));
+  instance.getPageManager = vi.fn(() => pageManager);
     instance.getStateManager = vi.fn(() => ({ isRunning: () => false }));
     instance.getButtonManager = vi.fn(() => ({ showButton, hideButton, setActive }));
     instance.registerDOM = vi.fn();
@@ -69,13 +74,78 @@ describe('CodeQuestionContainer load workflow', () => {
 
     expect(closeFileManager).toHaveBeenCalledWith({ skipPageChange: true });
     expect(releaseInputFocus).toHaveBeenCalledTimes(1);
-    expect(showPage).toHaveBeenCalledWith('code');
+    expect(pageManager.showPage).toHaveBeenCalledWith('code');
     expect(showButton).toHaveBeenCalledWith('runButton');
     expect(setActive).toHaveBeenCalledWith('runButton');
     expect(hideButton).toHaveBeenCalledWith('showCodeButton');
     expect(instance.registerDOM).toHaveBeenCalledTimes(1);
     expect(requestAnimationFrame).toHaveBeenCalledTimes(2);
     expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not steal editor focus from another active instance', () => {
+    const instance = Object.create(CodeQuestionContainer.prototype);
+    const closeFileManager = vi.fn();
+    const showPage = vi.fn(function showPageImpl(pageName) {
+      this.activePageName = pageName;
+    });
+    const showButton = vi.fn();
+    const hideButton = vi.fn();
+    const setActive = vi.fn();
+    const focus = vi.fn();
+
+    const originalRequestAnimationFrame = window.requestAnimationFrame;
+    const originalSetTimeout = window.setTimeout;
+    const requestAnimationFrame = vi.fn((callback) => {
+      callback();
+      return 1;
+    });
+    const setTimeoutMock = vi.fn((callback) => {
+      callback();
+      return 1;
+    });
+
+    window.requestAnimationFrame = requestAnimationFrame;
+    window.setTimeout = setTimeoutMock;
+
+    const pageManager = {
+      activePageName: 'canvas',
+      showPage,
+    };
+
+    const ownRoot = document.createElement('div');
+    ownRoot.tabIndex = -1;
+    document.body.appendChild(ownRoot);
+
+    const otherRoot = document.createElement('div');
+    const otherInput = document.createElement('input');
+    otherRoot.appendChild(otherInput);
+    document.body.appendChild(otherRoot);
+    otherInput.focus();
+
+    instance.parent = ownRoot;
+    instance.getEditorManager = vi.fn(() => ({ closeFileManager, focus }));
+    instance.getPageManager = vi.fn(() => pageManager);
+    instance.getStateManager = vi.fn(() => ({ isRunning: () => false }));
+    instance.getButtonManager = vi.fn(() => ({ showButton, hideButton, setActive }));
+    instance.registerDOM = vi.fn();
+
+    try {
+      instance.showCodePage();
+    }
+    finally {
+      window.requestAnimationFrame = originalRequestAnimationFrame;
+      window.setTimeout = originalSetTimeout;
+      ownRoot.remove();
+      otherRoot.remove();
+    }
+
+    expect(closeFileManager).toHaveBeenCalledWith({ skipPageChange: true });
+    expect(showPage).toHaveBeenCalledWith('code');
+    expect(showButton).toHaveBeenCalledWith('runButton');
+    expect(setActive).toHaveBeenCalledWith('runButton');
+    expect(hideButton).toHaveBeenCalledWith('showCodeButton');
+    expect(focus).not.toHaveBeenCalled();
   });
 
   it('does nothing when loading is cancelled', async () => {
