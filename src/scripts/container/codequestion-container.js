@@ -262,7 +262,11 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
       return false;
     }
 
-    const ownerDocument = this.parent?.ownerDocument || document;
+    const ownerDocument = this.parent?.ownerDocument || globalThis.document;
+    if (!ownerDocument) {
+      return false;
+    }
+
     const activeElement = ownerDocument?.activeElement;
 
     if (!activeElement || activeElement === ownerDocument.body) {
