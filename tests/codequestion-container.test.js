@@ -5,7 +5,11 @@ let CodeQuestionContainer;
 describe('CodeQuestionContainer load workflow', () => {
   beforeEach(async () => {
     vi.resetModules();
-    globalThis.H5P.CodeContainer = class CodeContainer {};
+    globalThis.H5P.CodeContainer = class CodeContainer {
+      getUIRegistrations() {
+        return { buttons: [], pages: [], observers: [] };
+      }
+    };
     globalThis.H5P.DialogQueue = class DialogQueue {
       enqueueAlert = vi.fn().mockResolvedValue(undefined);
     };
@@ -421,5 +425,24 @@ describe('CodeQuestionContainer load workflow', () => {
     expect(showButton).toHaveBeenCalledWith('fullscreenEnable');
     expect(restoreDynamicHeight).toHaveBeenCalledTimes(1);
     expect(restoreConsoleHeight).toHaveBeenCalledTimes(1);
+  });
+
+  it('orders images and sounds buttons before save and load', () => {
+    const instance = Object.create(CodeQuestionContainer.prototype);
+
+    instance.l10n = {
+      images: 'Images',
+      sounds: 'Sounds',
+    };
+    instance.mergeUIRegistrations = (_base, extension) => extension;
+
+    const registrations = instance.getUIRegistrations();
+    const buttonWeights = registrations.buttons.reduce((map, button) => ({
+      ...map,
+      [button.identifier]: button.weight,
+    }), {});
+
+    expect(buttonWeights.images).toBeLessThan(1);
+    expect(buttonWeights.sounds).toBeLessThan(1);
   });
 });

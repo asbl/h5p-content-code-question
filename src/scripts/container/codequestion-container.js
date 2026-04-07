@@ -74,14 +74,14 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
             label: () => this.l10n.images,
             icon: 'fa-solid fa-image',
             class: 'images',
-            weight: 1,
+            weight: 0,
           },
           {
             when: 'hasSoundsPage',
             identifier: 'sounds',
             label: () => this.l10n.sounds,
             class: 'sounds',
-            weight: 1,
+            weight: 0,
           },
         ],
         pages: [
