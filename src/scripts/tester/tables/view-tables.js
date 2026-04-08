@@ -71,6 +71,7 @@ export default class TablesView extends TestCaseView {
     // Copy button
     const copyBtn = document.createElement('button');
     copyBtn.id = this.copyButtonID;
+    copyBtn.classList.add('copy-badge-button');
     copyBtn.textContent = getCodeQuestionL10nValue(this.l10n, 'copy');
     const copyStatus = document.createElement('div');
     copyStatus.classList.add('copy-status');
