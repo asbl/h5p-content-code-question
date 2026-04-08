@@ -20,10 +20,13 @@ describe('ViewTables', () => {
     view.update();
 
     const summary = fixture.querySelector('.tables-diff-summary');
+    const tables = fixture.querySelectorAll('.tables-table');
     expect(summary?.textContent).toContain('Your query still needs adjustments.');
     expect(summary?.textContent).toContain('Rows');
     expect(summary?.textContent).toContain('Columns');
     expect(summary?.innerHTML).toContain('Paris | 2');
     expect(summary?.innerHTML).toContain('country');
+    expect(tables[0]?.innerHTML).toContain('table-column-mismatch');
+    expect(tables[0]?.innerHTML).toContain('table-cell-mismatch');
   });
 });

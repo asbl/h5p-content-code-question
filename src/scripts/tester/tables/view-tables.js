@@ -164,13 +164,55 @@ export default class TablesView extends TestCaseView {
     return `<div class="tables-diff-item"><dt>${label}</dt><dd>${value}</dd></div>`;
   }
 
+  getPrimaryTable(tableArray) {
+    return tableArray?.[0] || null;
+  }
+
+  normalizeCellValue(value) {
+    return String(value ?? '').trim();
+  }
+
+  serializeRow(row = []) {
+    return row.map((value) => this.normalizeCellValue(value)).join('|');
+  }
+
+  getCounterpartTable(role) {
+    return role === 'answer'
+      ? this.getPrimaryTable(this.targetTable)
+      : this.getPrimaryTable(this.resultTable);
+  }
+
+  rowExistsInCounterpart(row, role) {
+    const serializedRow = this.serializeRow(row);
+    const counterpartRows = this.getCounterpartTable(role)?.values || [];
+
+    return counterpartRows.some((candidate) => this.serializeRow(candidate) === serializedRow);
+  }
+
+  getHeaderClass(isMatch) {
+    return isMatch ? 'table-column-match' : 'table-column-mismatch';
+  }
+
+  getCellClass(role, row, rowIndex, columnIndex) {
+    if (this.rowExistsInCounterpart(row, role)) {
+      return '';
+    }
+
+    const counterpartRow = this.getCounterpartTable(role)?.values?.[rowIndex] || [];
+    const currentValue = this.normalizeCellValue(row?.[columnIndex]);
+    const counterpartValue = this.normalizeCellValue(counterpartRow?.[columnIndex]);
+
+    return currentValue === counterpartValue ? '' : 'table-cell-mismatch';
+  }
+
   /**
    * Format a table as HTML with highlights for differences.
    * @param {Array<object>} tableArray - table array
    * @param {object} comparison - comparison object from comparator
+   * @param {string} [role='expected'] - Whether the table is the expected or learner answer.
    * @returns {string} Formatted HTML table.
    */
-  formatTable(tableArray, comparison) {
+  formatTable(tableArray, comparison, role = 'expected') {
     if (!tableArray || !tableArray[0]) {
       return '';
     }
@@ -180,13 +222,16 @@ export default class TablesView extends TestCaseView {
     // Columns HTML
     const columnsHtml = (table.columns || []).map((col, cIndex) => {
       const isMatch = comparison?.colMatches?.[cIndex] ?? false; // safe access
-      return `<th class="${isMatch ? 'matching' : 'not-matching'}">${col}</th>`;
+      return `<th class="${this.getHeaderClass(isMatch)}">${col}</th>`;
     }).join('');
 
     // Rows HTML
     const rowsHtml = (table.values || []).map((row, rIndex) => {
-      const rowClass = comparison?.rowMatches?.[rIndex] ? 'matching' : 'not-matching';
-      const cellsHtml = row.map((cell) => `<td>${cell}</td>`).join('');
+      const rowClass = this.rowExistsInCounterpart(row, role) ? 'table-row-match' : 'table-row-mismatch';
+      const cellsHtml = row.map((cell, cIndex) => {
+        const cellClass = this.getCellClass(role, row, rIndex, cIndex);
+        return `<td class="${cellClass}">${cell}</td>`;
+      }).join('');
       return `<tr class="${rowClass}">${cellsHtml}</tr>`;
     }).join('');
 
