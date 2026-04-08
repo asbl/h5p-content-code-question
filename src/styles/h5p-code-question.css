@@ -488,6 +488,25 @@
     color: #475569;
 }
 
+.h5p-codequestion .tables-inline-summary {
+    margin: 0 0 12px;
+    color: #475569;
+    font-size: 0.95rem;
+}
+
+.h5p-codequestion .tables-inline-summary p,
+.h5p-codequestion .tables-diff-intro {
+    margin: 0 0 6px;
+}
+
+.h5p-codequestion .tables-inline-summary-status {
+    color: #1f2937;
+}
+
+.h5p-codequestion .tables-diff-details {
+    margin-top: 14px;
+}
+
 .h5p-codequestion .h5p-question-check-answer.is-busy {
     opacity: 0.78;
     cursor: progress;

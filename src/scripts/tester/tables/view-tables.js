@@ -49,13 +49,9 @@ export default class TablesView extends TestCaseView {
       container.appendChild(dueDateHandler.getDueDateMeta());
     }
 
-    // Wrapper for columns + summary
+    // Wrapper for tables and difference details
     const wrapperDiv = document.createElement('div');
     wrapperDiv.classList.add('tables-tester-wrapper'); // CSS: flex-direction: column
-
-    const summary = document.createElement('div');
-    summary.classList.add('tables-diff-summary');
-    summary.innerHTML = this.renderSummary(comparison);
 
     // Columns container
     const viewDiv = document.createElement('div');
@@ -65,6 +61,7 @@ export default class TablesView extends TestCaseView {
     const outputCol = document.createElement('div');
     outputCol.classList.add('console-column');
     outputCol.innerHTML = `<h4>${getCodeQuestionL10nValue(this.l10n, 'myAnswer')}</h4>
+      ${this.renderInlineSummary(comparison)}
       <pre class="tables-output">${this.formatTable(
     this.resultTable,
     comparison,
@@ -97,31 +94,43 @@ export default class TablesView extends TestCaseView {
     viewDiv.appendChild(outputCol);
     viewDiv.appendChild(expectedCol);
 
-    wrapperDiv.appendChild(summary);
     wrapperDiv.appendChild(viewDiv);
+
+    const detailMarkup = this.renderDetailList(comparison);
+    if (detailMarkup) {
+      const detailSection = document.createElement('div');
+      detailSection.classList.add('tables-diff-details');
+      detailSection.innerHTML = detailMarkup;
+      wrapperDiv.appendChild(detailSection);
+    }
+
     container.appendChild(wrapperDiv);
   }
 
-  renderSummary(comparison) {
+  renderInlineSummary(comparison) {
     const statusKey = comparison.identical ? 'tableDiffSolved' : 'tableDiffNeedsFix';
-    const details = [
-      this.renderSummaryItem(
-        getCodeQuestionL10nValue(this.l10n, 'tableDiffRowSummary'),
-        tCodeQuestion(this.l10n, 'tableDiffRowSummaryValue', {
-          matching: comparison.matchingRows,
-          missing: comparison.missingRows.length,
-          extra: comparison.extraRows.length,
-        }),
-      ),
-      this.renderSummaryItem(
-        getCodeQuestionL10nValue(this.l10n, 'tableDiffColumnSummary'),
-        tCodeQuestion(this.l10n, 'tableDiffColumnSummaryValue', {
-          matching: comparison.matchingCols,
-          missing: comparison.missingColumns.length,
-          extra: comparison.extraColumns.length,
-        }),
-      ),
-    ];
+    const rowSummary = tCodeQuestion(this.l10n, 'tableDiffRowSummaryValue', {
+      matching: comparison.matchingRows,
+      missing: comparison.missingRows.length,
+      extra: comparison.extraRows.length,
+    });
+    const columnSummary = tCodeQuestion(this.l10n, 'tableDiffColumnSummaryValue', {
+      matching: comparison.matchingCols,
+      missing: comparison.missingColumns.length,
+      extra: comparison.extraColumns.length,
+    });
+
+    return `
+      <div class="tables-inline-summary">
+        <p class="tables-inline-summary-status"><strong>${getCodeQuestionL10nValue(this.l10n, statusKey)}</strong></p>
+        <p>${getCodeQuestionL10nValue(this.l10n, 'tableDiffRowSummary')}: ${rowSummary}</p>
+        <p>${getCodeQuestionL10nValue(this.l10n, 'tableDiffColumnSummary')}: ${columnSummary}</p>
+      </div>
+    `;
+  }
+
+  renderDetailList(comparison) {
+    const details = [];
 
     if (comparison.missingColumns.length > 0) {
       details.push(this.renderSummaryItem(
@@ -151,11 +160,12 @@ export default class TablesView extends TestCaseView {
       ));
     }
 
+    if (details.length === 0) {
+      return '';
+    }
+
     return `
-      <div class="tables-diff-status ${comparison.identical ? 'matching' : 'not-matching'}">
-        <strong>${getCodeQuestionL10nValue(this.l10n, statusKey)}</strong>
-        <p>${getCodeQuestionL10nValue(this.l10n, 'tableDiffIntro')}</p>
-      </div>
+      <p class="tables-diff-intro">${getCodeQuestionL10nValue(this.l10n, 'tableDiffIntro')}</p>
       <dl class="tables-diff-list">${details.join('')}</dl>
     `;
   }
