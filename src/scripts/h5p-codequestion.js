@@ -323,23 +323,51 @@ export default class CodeQuestion extends H5P.Question {
     }
 
     this.resetStopSignal();
+    this.setCheckAnswerBusyState(true);
 
-    // Start a new attempt
-    this.sendAttemptedEvent();
+    try {
+      // Start a new attempt
+      this.sendAttemptedEvent();
 
-    // Run tests
-    this.codeTester.reset();
-    const runtime = this.getTestRuntimeFactory().create();
-    await runtime.start(this.codeContainer);
+      // Run tests
+      this.codeTester.reset();
+      const runtime = this.getTestRuntimeFactory().create();
+      await runtime.start(this.codeContainer);
 
-    // Show feedback
-    const score = this.getScore();
-    const maxScore = this.getMaxScore();
-    this.applyScoreFeedback(score, maxScore);
-    // Send answered statement
-    this.sendAnsweredEvent();
+      // Show feedback
+      const score = this.getScore();
+      const maxScore = this.getMaxScore();
+      this.applyScoreFeedback(score, maxScore);
+      // Send answered statement
+      this.sendAnsweredEvent();
 
-    this.resizeActionHandler();
+      this.resizeActionHandler();
+    }
+    finally {
+      this.setCheckAnswerBusyState(false);
+    }
+  }
+
+  getCheckAnswerButton() {
+    return this.getContainer()?.querySelector?.('.h5p-question-check-answer') || null;
+  }
+
+  setCheckAnswerBusyState(isBusy) {
+    const button = this.getCheckAnswerButton();
+    if (!button) {
+      return;
+    }
+
+    if (!button.dataset.originalLabel) {
+      button.dataset.originalLabel = button.textContent || this.l10n.checkAnswer;
+    }
+
+    button.disabled = isBusy;
+    button.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+    button.classList.toggle('is-busy', isBusy);
+    button.textContent = isBusy
+      ? getCodeQuestionL10nValue(this.l10n, 'checkingAnswer')
+      : button.dataset.originalLabel;
   }
 
   /**

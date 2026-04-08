@@ -120,6 +120,45 @@ describe('CodeQuestion', () => {
     });
   });
 
+  it('shows a busy label on the check-answer button while tests are running', async () => {
+    const question = new CodeQuestion({
+      l10n: {
+        checkAnswer: 'Check Answer',
+        checkingAnswer: 'Checking...',
+      },
+    }, 1);
+    const runtime = { start: vi.fn().mockResolvedValue() };
+    const button = document.createElement('button');
+    button.className = 'h5p-question-check-answer';
+    button.textContent = 'Check Answer';
+
+    question.codeTester = {
+      reset: vi.fn(),
+      getScore: vi.fn(() => 1),
+    };
+    question.codeContainer = {};
+    question.getContainer = vi.fn(() => {
+      const container = document.createElement('div');
+      container.appendChild(button);
+      return container;
+    });
+    question.getTestRuntimeFactory = vi.fn(() => ({ create: () => runtime }));
+    question.sendAttemptedEvent = vi.fn();
+    question.applyScoreFeedback = vi.fn();
+    question.sendAnsweredEvent = vi.fn();
+    question.resizeActionHandler = vi.fn();
+
+    const pendingCheck = question.checkAction();
+
+    expect(button.textContent).toBe('Checking...');
+    expect(button.disabled).toBe(true);
+
+    await pendingCheck;
+
+    expect(button.textContent).toBe('Check Answer');
+    expect(button.disabled).toBe(false);
+  });
+
   it('normalizes showConsole and enableDueDate flags from params', () => {
     const questionHiddenConsole = new CodeQuestion({
       editorSettings: {

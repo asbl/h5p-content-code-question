@@ -488,6 +488,11 @@
     color: #475569;
 }
 
+.h5p-codequestion .h5p-question-check-answer.is-busy {
+    opacity: 0.78;
+    cursor: progress;
+}
+
 .h5p-codequestion.theme-dark .due-date-meta,
 .theme-dark .h5p-codequestion .due-date-meta,
 .h5p-fullscreen .h5p-codequestion .content-part.fullscreen.theme-dark .due-date-meta,

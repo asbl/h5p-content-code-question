@@ -1,6 +1,7 @@
 {
   "libraryStrings": {
     "checkAnswer": "Antwort prüfen",
+    "checkingAnswer": "Pruefe...",
     "run": "Ausführen",
     "stop": "Stoppen",
     "failedText": "Nicht bestanden - versuch es noch einmal",
