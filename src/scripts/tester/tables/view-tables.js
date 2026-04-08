@@ -109,6 +109,7 @@ export default class TablesView extends TestCaseView {
 
   renderInlineSummary(comparison) {
     const statusKey = comparison.identical ? 'tableDiffSolved' : 'tableDiffNeedsFix';
+    const statusSymbol = comparison.identical ? '✓' : '✕';
     const rowSummary = tCodeQuestion(this.l10n, 'tableDiffRowSummaryValue', {
       matching: comparison.matchingRows,
       missing: comparison.missingRows.length,
@@ -122,7 +123,7 @@ export default class TablesView extends TestCaseView {
 
     return `
       <div class="tables-inline-summary">
-        <p class="tables-inline-summary-status"><strong>${getCodeQuestionL10nValue(this.l10n, statusKey)}</strong></p>
+        <p class="tables-inline-summary-status ${comparison.identical ? 'matching' : 'not-matching'}"><span class="tables-inline-status-icon" aria-hidden="true">${statusSymbol}</span><strong>${getCodeQuestionL10nValue(this.l10n, statusKey)}</strong></p>
         <p>${getCodeQuestionL10nValue(this.l10n, 'tableDiffRowSummary')}: ${rowSummary}</p>
         <p>${getCodeQuestionL10nValue(this.l10n, 'tableDiffColumnSummary')}: ${columnSummary}</p>
       </div>
@@ -215,6 +216,19 @@ export default class TablesView extends TestCaseView {
     return currentValue === counterpartValue ? '' : 'table-cell-mismatch';
   }
 
+  getRowStatusSymbol(row, role) {
+    return this.rowExistsInCounterpart(row, role) ? '✓' : '✕';
+  }
+
+  formatCellContent(cell, row, role, rowIndex, columnIndex) {
+    const value = cell ?? '';
+    if (role !== 'answer' || columnIndex !== 0) {
+      return `${value}`;
+    }
+
+    return `<span class="table-row-status-symbol" aria-hidden="true">${this.getRowStatusSymbol(row, role)}</span><span class="table-cell-value">${value}</span>`;
+  }
+
   /**
    * Format a table as HTML with highlights for differences.
    * @param {Array<object>} tableArray - table array
@@ -240,7 +254,7 @@ export default class TablesView extends TestCaseView {
       const rowClass = this.rowExistsInCounterpart(row, role) ? 'table-row-match' : 'table-row-mismatch';
       const cellsHtml = row.map((cell, cIndex) => {
         const cellClass = this.getCellClass(role, row, rIndex, cIndex);
-        return `<td class="${cellClass}">${cell}</td>`;
+        return `<td class="${cellClass}">${this.formatCellContent(cell, row, role, rIndex, cIndex)}</td>`;
       }).join('');
       return `<tr class="${rowClass}">${cellsHtml}</tr>`;
     }).join('');

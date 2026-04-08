@@ -503,8 +503,46 @@
     color: #1f2937;
 }
 
+.h5p-codequestion .tables-inline-summary-status.matching {
+    color: #166534;
+}
+
+.h5p-codequestion .tables-inline-summary-status.not-matching {
+    color: #9f1239;
+}
+
+.h5p-codequestion .tables-inline-status-icon {
+    display: inline-block;
+    width: 1.1rem;
+    margin-right: 0.25rem;
+    font-weight: 700;
+}
+
 .h5p-codequestion .tables-diff-details {
     margin-top: 14px;
+}
+
+.h5p-codequestion .tables-table .table-row-match td {
+    background: #eefbf3;
+}
+
+.h5p-codequestion .tables-table .table-row-mismatch td {
+    background: #fff1f2;
+}
+
+.h5p-codequestion .table-row-status-symbol {
+    display: inline-block;
+    width: 1rem;
+    margin-right: 0.35rem;
+    font-weight: 700;
+}
+
+.h5p-codequestion .table-row-match .table-row-status-symbol {
+    color: #15803d;
+}
+
+.h5p-codequestion .table-row-mismatch .table-row-status-symbol {
+    color: #be123c;
 }
 
 .h5p-codequestion .h5p-question-check-answer.is-busy {
