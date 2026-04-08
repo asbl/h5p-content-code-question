@@ -3,6 +3,7 @@ import DateHandler from '@scripts/tester/components/date-handler';
 import TablesComparator from '@scripts/tester/tables/comparator-tables';
 import {
   getCodeQuestionL10nValue,
+  tCodeQuestion,
 } from '@scripts/services/codequestion-l10n';
 
 /**
@@ -52,6 +53,10 @@ export default class TablesView extends TestCaseView {
     const wrapperDiv = document.createElement('div');
     wrapperDiv.classList.add('tables-tester-wrapper'); // CSS: flex-direction: column
 
+    const summary = document.createElement('div');
+    summary.classList.add('tables-diff-summary');
+    summary.innerHTML = this.renderSummary(comparison);
+
     // Columns container
     const viewDiv = document.createElement('div');
     viewDiv.classList.add('tables-tester-area'); // CSS: display:flex; flex-direction: row
@@ -92,8 +97,71 @@ export default class TablesView extends TestCaseView {
     viewDiv.appendChild(outputCol);
     viewDiv.appendChild(expectedCol);
 
+    wrapperDiv.appendChild(summary);
     wrapperDiv.appendChild(viewDiv);
     container.appendChild(wrapperDiv);
+  }
+
+  renderSummary(comparison) {
+    const statusKey = comparison.identical ? 'tableDiffSolved' : 'tableDiffNeedsFix';
+    const details = [
+      this.renderSummaryItem(
+        getCodeQuestionL10nValue(this.l10n, 'tableDiffRowSummary'),
+        tCodeQuestion(this.l10n, 'tableDiffRowSummaryValue', {
+          matching: comparison.matchingRows,
+          missing: comparison.missingRows.length,
+          extra: comparison.extraRows.length,
+        }),
+      ),
+      this.renderSummaryItem(
+        getCodeQuestionL10nValue(this.l10n, 'tableDiffColumnSummary'),
+        tCodeQuestion(this.l10n, 'tableDiffColumnSummaryValue', {
+          matching: comparison.matchingCols,
+          missing: comparison.missingColumns.length,
+          extra: comparison.extraColumns.length,
+        }),
+      ),
+    ];
+
+    if (comparison.missingColumns.length > 0) {
+      details.push(this.renderSummaryItem(
+        getCodeQuestionL10nValue(this.l10n, 'tableDiffMissingColumns'),
+        comparison.missingColumns.join(', '),
+      ));
+    }
+
+    if (comparison.extraColumns.length > 0) {
+      details.push(this.renderSummaryItem(
+        getCodeQuestionL10nValue(this.l10n, 'tableDiffExtraColumns'),
+        comparison.extraColumns.join(', '),
+      ));
+    }
+
+    if (comparison.missingRows.length > 0) {
+      details.push(this.renderSummaryItem(
+        getCodeQuestionL10nValue(this.l10n, 'tableDiffMissingRows'),
+        comparison.missingRows.map((row) => row.join(' | ')).join('<br>'),
+      ));
+    }
+
+    if (comparison.extraRows.length > 0) {
+      details.push(this.renderSummaryItem(
+        getCodeQuestionL10nValue(this.l10n, 'tableDiffExtraRows'),
+        comparison.extraRows.map((row) => row.join(' | ')).join('<br>'),
+      ));
+    }
+
+    return `
+      <div class="tables-diff-status ${comparison.identical ? 'matching' : 'not-matching'}">
+        <strong>${getCodeQuestionL10nValue(this.l10n, statusKey)}</strong>
+        <p>${getCodeQuestionL10nValue(this.l10n, 'tableDiffIntro')}</p>
+      </div>
+      <dl class="tables-diff-list">${details.join('')}</dl>
+    `;
+  }
+
+  renderSummaryItem(label, value) {
+    return `<div class="tables-diff-item"><dt>${label}</dt><dd>${value}</dd></div>`;
   }
 
   /**

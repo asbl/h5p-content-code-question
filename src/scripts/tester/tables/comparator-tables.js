@@ -71,6 +71,10 @@ export default class TablesComparator {
       nonMatchingRows: 0,
       matchingCols: 0,
       nonMatchingCols: 0,
+      missingRows: [],
+      extraRows: [],
+      missingColumns: [],
+      extraColumns: [],
       solved: false,
     };
 
@@ -91,6 +95,8 @@ export default class TablesComparator {
     }
     result.matchingCols = result.colMatches.filter(Boolean).length;
     result.nonMatchingCols = colCount - result.matchingCols;
+    result.missingColumns = (expTable.columns || []).filter((column) => !(actTable.columns || []).includes(column));
+    result.extraColumns = (actTable.columns || []).filter((column) => !(expTable.columns || []).includes(column));
 
     // --- Rows ---
     const expectedRows = (expTable.values || []).map(r => r.map(v => String(v).trim()).join('|'));
@@ -99,11 +105,20 @@ export default class TablesComparator {
     result.rowMatches = expectedRows.map(row => actualRows.includes(row));
     result.matchingRows = result.rowMatches.filter(Boolean).length;
     result.nonMatchingRows = result.rowMatches.filter(m => !m).length;
+    result.missingRows = (expTable.values || []).filter((row) => {
+      const serialized = row.map((value) => String(value).trim()).join('|');
+      return !actualRows.includes(serialized);
+    });
+    result.extraRows = (actTable.values || []).filter((row) => {
+      const serialized = row.map((value) => String(value).trim()).join('|');
+      return !expectedRows.includes(serialized);
+    });
     
     // --- Identical: same number of rows & columns + all rows match + columns match ---
     const sameRowCount = (expTable.values?.length || 0) === (actTable.values?.length || 0);
     const sameColCount = (expTable.columns?.length || 0) === (actTable.columns?.length || 0);
     result.identical = sameRowCount && sameColCount && result.nonMatchingRows === 0 && result.nonMatchingCols === 0;
+    result.solved = result.identical;
 
     return result;
   }

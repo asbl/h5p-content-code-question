@@ -47,7 +47,8 @@ export default class TablesTester extends CodeTester {
   }
 
   checkTestCase() {
-    return this.comparator.compare(this.targetTable, this.resultTable);
+    this.lastComparison = this.comparator.getComparisonDetails(this.targetTable, this.resultTable);
+    return this.lastComparison.identical;
   }
 
   getScore() {
