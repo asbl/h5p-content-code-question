@@ -14,7 +14,9 @@ export class Runtime {
     this._consoleManager = null;
     this.runner = null;
     this.options = options;
-    this.dialogQueue = new H5P.DialogQueue();
+    this.dialogQueue = new H5P.DialogQueue({
+      sweetAlertCdnUrl: this.options?.sweetAlertCdnUrl || '',
+    });
   }
 
   getConsoleManager() {
@@ -138,8 +140,8 @@ export class Runtime {
   reset() {
   }
 
-  prepareForRun() {
-    this.runner.setup();
+  async prepareForRun() {
+    await this.runner.setup();
   }
 
   /**
@@ -165,12 +167,12 @@ export class Runtime {
   }
 
 
-  start(codeContainer) {
+  async start(codeContainer) {
     this.setup(codeContainer); //has to be first, because this setups this.codeContainer
     this.reset();
     this.init();
-    this.prepareForRun();
-    this.run();
+    await this.prepareForRun();
+    await this.run();
   }
 
 }

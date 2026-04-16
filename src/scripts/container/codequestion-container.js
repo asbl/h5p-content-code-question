@@ -16,6 +16,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     if (!this._dialogQueue && typeof H5P?.DialogQueue === 'function') {
       this._dialogQueue = new H5P.DialogQueue({
         target: this.getDialogTarget(),
+        sweetAlertCdnUrl: this.options?.sweetAlertCdnUrl || '',
       });
     }
 

@@ -63,6 +63,7 @@ export default class CodeTester {
   reset() {
     this.session.reset();
     this.results.reset();
+    this.lastComparison = null;
     this.view.resetDOM();
   }
 

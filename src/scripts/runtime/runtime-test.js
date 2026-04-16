@@ -40,7 +40,7 @@ export const TestRuntimeMixin = (Base) =>
      */
     async run() {
       await this.runSolution();
-      this.prepareForRun();
+      await this.prepareForRun();
       await this.runCode(this.getCode());
     }
 

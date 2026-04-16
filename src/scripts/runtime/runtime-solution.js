@@ -89,7 +89,7 @@ export const SolutionRuntimeMixin = (Base) =>
     async start(codeContainer) {
       this.setup(codeContainer);
       this.init();
-      this.prepareForRun();
+      await this.prepareForRun();
       await this.run();
     }
   };

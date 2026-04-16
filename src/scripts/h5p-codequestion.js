@@ -20,7 +20,7 @@ export default class CodeQuestion extends H5P.Question {
    *  Constructor & basic initialisation
    * ------------------------------------------------------------------ */
   constructor(params = {}, contentId, extras = {}) {
-    super({}, contentId, extras);
+    super('code-question', {});
 
     // ---- Safe defaults -------------------------------------------------
     params = Util.extend(
@@ -113,14 +113,144 @@ export default class CodeQuestion extends H5P.Question {
     this.xAPIlastEvent = null;
 
     this.codeContainers = new Map();
+    this.boundInternalFrameResizeHandler = null;
   }
 
   getCodingLanguage() {
     return 'pseudocode';
   }
 
+  isInternalFrame() {
+    return window.H5P?.isFramed && window.H5P?.externalEmbed === false;
+  }
+
+  trigger(event, eventData, extras) {
+    const eventType = (typeof event === 'string') ? event : event?.type;
+
+    if (eventType === 'resize' && this.suppressInternalFrameResizeEvents && this.isInternalFrame()) {
+      return;
+    }
+
+    return super.trigger(event, eventData, extras);
+  }
+
   resizeActionHandler() {
     this.trigger('resize');
+  }
+
+  syncFramedHeightFallback() {
+    const iframe = window.frameElement;
+
+    if (!window.H5P?.isFramed || window.H5P?.externalEmbed !== false || !iframe || !document.body) {
+      return;
+    }
+
+    const nextHeight = Math.ceil(Math.max(
+      document.body.scrollHeight,
+      document.documentElement?.scrollHeight || 0,
+      document.body.getBoundingClientRect?.().height || 0,
+    ));
+
+    if (nextHeight > 0) {
+      iframe.style.height = `${nextHeight}px`;
+    }
+  }
+
+  scheduleEvaluationFrameSync() {
+    clearTimeout(this.evaluationFrameSyncTimerFast);
+    clearTimeout(this.evaluationFrameSyncTimerSlow);
+
+    const isInternalFrame = this.isInternalFrame();
+
+    if (!isInternalFrame) {
+      this.resizeActionHandler();
+      return;
+    }
+
+    this.suppressInternalFrameResizeEvents = true;
+    this.syncFramedHeightFallback();
+
+    this.evaluationFrameSyncTimerFast = setTimeout(() => {
+      this.syncFramedHeightFallback();
+    }, 75);
+
+    this.evaluationFrameSyncTimerSlow = setTimeout(() => {
+      this.syncFramedHeightFallback();
+      this.suppressInternalFrameResizeEvents = false;
+    }, 350);
+  }
+
+  scheduleInternalFrameLayoutSync() {
+    clearTimeout(this.internalFrameLayoutSyncTimerFast);
+    clearTimeout(this.internalFrameLayoutSyncTimerSlow);
+
+    if (!this.isInternalFrame()) {
+      return;
+    }
+
+    this.syncFramedHeightFallback();
+
+    this.internalFrameLayoutSyncTimerFast = setTimeout(() => {
+      this.syncFramedHeightFallback();
+    }, 75);
+
+    this.internalFrameLayoutSyncTimerSlow = setTimeout(() => {
+      this.syncFramedHeightFallback();
+    }, 250);
+  }
+
+  teardownInternalFrameResizeSync() {
+    clearTimeout(this.internalFrameResizeDebounceTimer);
+    clearTimeout(this.internalFrameLayoutSyncTimerFast);
+    clearTimeout(this.internalFrameLayoutSyncTimerSlow);
+
+    this.internalFrameResizeObserver?.disconnect?.();
+    this.internalFrameResizeObserver = null;
+
+    if (this.boundInternalFrameResizeHandler) {
+      window.removeEventListener('resize', this.boundInternalFrameResizeHandler);
+      this.boundInternalFrameResizeHandler = null;
+    }
+  }
+
+  setupInternalFrameResizeSync() {
+    this.teardownInternalFrameResizeSync();
+
+    if (!this.isInternalFrame()) {
+      return;
+    }
+
+    this.boundInternalFrameResizeHandler = () => {
+      clearTimeout(this.internalFrameResizeDebounceTimer);
+      this.internalFrameResizeDebounceTimer = setTimeout(() => {
+        this.scheduleInternalFrameLayoutSync();
+      }, 75);
+    };
+
+    window.addEventListener('resize', this.boundInternalFrameResizeHandler);
+
+    if (typeof window.ResizeObserver === 'function') {
+      this.internalFrameResizeObserver = new window.ResizeObserver(() => {
+        clearTimeout(this.internalFrameResizeDebounceTimer);
+        this.internalFrameResizeDebounceTimer = setTimeout(() => {
+          this.scheduleInternalFrameLayoutSync();
+        }, 50);
+      });
+
+      if (document.body) {
+        this.internalFrameResizeObserver.observe(document.body);
+      }
+
+      if (document.documentElement) {
+        this.internalFrameResizeObserver.observe(document.documentElement);
+      }
+
+      if (this.parentDiv) {
+        this.internalFrameResizeObserver.observe(this.parentDiv);
+      }
+    }
+
+    this.scheduleInternalFrameLayoutSync();
   }
 
   codeHandler() {
@@ -309,6 +439,8 @@ export default class CodeQuestion extends H5P.Question {
 
   runAction() {
     this.resetStopSignal();
+    this.removeFeedback();
+    this.codeTester?.reset?.();
     this.codeContainer.run();
   }
 
@@ -323,6 +455,7 @@ export default class CodeQuestion extends H5P.Question {
     }
 
     this.resetStopSignal();
+    this.codeContainer?.clearRunOutput?.();
     this.setCheckAnswerBusyState(true);
 
     try {
@@ -341,7 +474,7 @@ export default class CodeQuestion extends H5P.Question {
       // Send answered statement
       this.sendAnsweredEvent();
 
-      this.resizeActionHandler();
+      this.scheduleEvaluationFrameSync();
     }
     finally {
       this.setCheckAnswerBusyState(false);
@@ -384,7 +517,7 @@ export default class CodeQuestion extends H5P.Question {
     // Finalize attempt
     this.sendCompletedEvent();
 
-    this.resizeActionHandler();
+    this.scheduleEvaluationFrameSync();
   }
 
 
@@ -524,6 +657,7 @@ export default class CodeQuestion extends H5P.Question {
    * @returns {void}
    */
   destroy() {
+    this.teardownInternalFrameResizeSync();
     this.destroyCodeContainers();
   }
 
@@ -589,6 +723,16 @@ export default class CodeQuestion extends H5P.Question {
     }
 
     this.setContent(this.parentDiv);
+    this.applyQuestionRootClass();
+    this.setupInternalFrameResizeSync();
+  }
+
+  applyQuestionRootClass() {
+    const questionRoot = this.parentDiv?.closest('.h5p-question');
+
+    if (questionRoot) {
+      questionRoot.classList.add(this.getQuestionName());
+    }
   }
 
   isAssignment() {
@@ -647,8 +791,37 @@ export default class CodeQuestion extends H5P.Question {
   renderTextContent(container, content, _index) {
     container.classList.add('text');
     const markdown = new H5P.Markdown(content.text ?? '');
-    container.append(markdown.getMarkdownDiv());
+    this.appendResolvedMarkdown(container, markdown);
     return container;
+  }
+
+  /**
+   * Resolves markdown asynchronously and appends the resulting DOM node.
+   * This avoids rendering Promise objects as text when markdown rendering is async.
+   * @param {HTMLElement} container Target container.
+   * @param {object} markdown H5P markdown instance.
+   * @returns {void}
+   */
+  appendResolvedMarkdown(container, markdown) {
+    const markdownDiv = markdown.getMarkdownDiv();
+
+    if (typeof markdownDiv?.then === 'function') {
+      markdownDiv
+        .then((resolvedMarkdownDiv) => {
+          if (resolvedMarkdownDiv) {
+            container.append(resolvedMarkdownDiv);
+          }
+        })
+        .catch((error) => {
+          console.error('Failed to render markdown content', error);
+        });
+
+      return;
+    }
+
+    if (markdownDiv) {
+      container.append(markdownDiv);
+    }
   }
 
   /**
@@ -675,7 +848,7 @@ export default class CodeQuestion extends H5P.Question {
       const md = '```' + this.getCodingLanguage() + '\n' +
         this.getDecodedCode(content.code) + '\n```';
       const markdown = new H5P.Markdown(md);
-      container.append(markdown.getMarkdownDiv());
+      this.appendResolvedMarkdown(container, markdown);
     }
     else {
       const editorWrapper = document.createElement('div');
@@ -705,7 +878,7 @@ export default class CodeQuestion extends H5P.Question {
       this.getDecodedCode(content.code) + '\n```';
     const markdown = new H5P.Markdown(md);
     summary.textContent = getCodeQuestionL10nValue(this.l10n, 'solutionCode');
-    body.append(markdown.getMarkdownDiv());
+    this.appendResolvedMarkdown(body, markdown);
     details.append(summary, body);
     container.append(details);
     return container;

@@ -147,6 +147,7 @@ describe('CodeQuestion', () => {
     question.applyScoreFeedback = vi.fn();
     question.sendAnsweredEvent = vi.fn();
     question.resizeActionHandler = vi.fn();
+    question.scheduleEvaluationFrameSync = vi.fn();
 
     const pendingCheck = question.checkAction();
 
@@ -157,6 +158,233 @@ describe('CodeQuestion', () => {
 
     expect(button.textContent).toBe('Check Answer');
     expect(button.disabled).toBe(false);
+    expect(question.scheduleEvaluationFrameSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears prior check-answer feedback before a manual run starts', () => {
+    const question = new CodeQuestion({}, 1);
+    const run = vi.fn();
+
+    question.removeFeedback = vi.fn();
+    question.codeTester = { reset: vi.fn() };
+    question.codeContainer = {
+      stopSignal: true,
+      stop_signal: true,
+      run,
+    };
+
+    question.runAction();
+
+    expect(question.removeFeedback).toHaveBeenCalledTimes(1);
+    expect(question.codeTester.reset).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('clears prior run output before check-answer evaluation starts', async () => {
+    const question = new CodeQuestion({
+      l10n: {
+        checkAnswer: 'Check Answer',
+        checkingAnswer: 'Checking...',
+      },
+    }, 1);
+    const runtime = { start: vi.fn().mockResolvedValue() };
+
+    question.codeTester = {
+      reset: vi.fn(),
+      getScore: vi.fn(() => 1),
+    };
+    question.codeContainer = {
+      clearRunOutput: vi.fn(),
+    };
+    question.getContainer = vi.fn(() => {
+      const container = document.createElement('div');
+      const button = document.createElement('button');
+      button.className = 'h5p-question-check-answer';
+      button.textContent = 'Check Answer';
+      container.appendChild(button);
+      return container;
+    });
+    question.getTestRuntimeFactory = vi.fn(() => ({ create: () => runtime }));
+    question.sendAttemptedEvent = vi.fn();
+    question.applyScoreFeedback = vi.fn();
+    question.sendAnsweredEvent = vi.fn();
+    question.scheduleEvaluationFrameSync = vi.fn();
+
+    await question.checkAction();
+
+    expect(question.codeContainer.clearRunOutput).toHaveBeenCalledTimes(1);
+  });
+
+  it('syncs iframe height after evaluation in framed mode', async () => {
+    vi.useFakeTimers();
+
+    const question = new CodeQuestion({}, 1);
+    const originalWindow = globalThis.window;
+    const iframeStyle = {};
+
+    globalThis.window = {
+      ...originalWindow,
+      H5P: {
+        isFramed: true,
+        externalEmbed: false,
+      },
+      frameElement: {
+        style: iframeStyle,
+      },
+    };
+
+    Object.defineProperty(globalThis.document.body, 'scrollHeight', {
+      configurable: true,
+      value: 640,
+    });
+    Object.defineProperty(globalThis.document.documentElement, 'scrollHeight', {
+      configurable: true,
+      value: 630,
+    });
+
+    question.resizeActionHandler = vi.fn();
+
+    try {
+      question.scheduleEvaluationFrameSync();
+      await vi.runAllTimersAsync();
+
+      expect(iframeStyle.height).toBe('640px');
+      expect(question.resizeActionHandler).not.toHaveBeenCalled();
+    }
+    finally {
+      globalThis.window = originalWindow;
+      vi.useRealTimers();
+    }
+  });
+
+  it('syncs framed height after dom registration and on window resize', async () => {
+    vi.useFakeTimers();
+
+    const question = new CodeQuestion({}, 1);
+    const originalWindow = globalThis.window;
+    const iframeStyle = {};
+    const resizeListeners = new Set();
+    const resizeObserverInstances = [];
+    class ResizeObserverMock {
+      constructor(callback) {
+        this.callback = callback;
+        this.observe = vi.fn();
+        this.disconnect = vi.fn();
+        resizeObserverInstances.push(this);
+      }
+    }
+
+    globalThis.window = {
+      ...originalWindow,
+      H5P: {
+        isFramed: true,
+        externalEmbed: false,
+      },
+      frameElement: {
+        style: iframeStyle,
+      },
+      addEventListener: vi.fn((event, listener) => {
+        if (event === 'resize') {
+          resizeListeners.add(listener);
+        }
+      }),
+      removeEventListener: vi.fn((event, listener) => {
+        if (event === 'resize') {
+          resizeListeners.delete(listener);
+        }
+      }),
+      ResizeObserver: ResizeObserverMock,
+    };
+
+    Object.defineProperty(globalThis.document.body, 'scrollHeight', {
+      configurable: true,
+      value: 640,
+    });
+    Object.defineProperty(globalThis.document.documentElement, 'scrollHeight', {
+      configurable: true,
+      value: 630,
+    });
+
+    question.contentType = 'text_only';
+    question.setContent = vi.fn();
+
+    try {
+      question.registerDomElements();
+      await vi.runAllTimersAsync();
+
+      expect(iframeStyle.height).toBe('640px');
+      expect(globalThis.window.addEventListener).toHaveBeenCalledWith('resize', expect.any(Function));
+      expect(resizeListeners.size).toBe(1);
+      expect(resizeObserverInstances).toHaveLength(1);
+      expect(resizeObserverInstances[0].observe).toHaveBeenCalledTimes(3);
+
+      Object.defineProperty(globalThis.document.body, 'scrollHeight', {
+        configurable: true,
+        value: 780,
+      });
+      Object.defineProperty(globalThis.document.documentElement, 'scrollHeight', {
+        configurable: true,
+        value: 760,
+      });
+
+      for (const listener of resizeListeners) {
+        listener();
+      }
+      await vi.runAllTimersAsync();
+
+      expect(iframeStyle.height).toBe('780px');
+
+      question.destroy();
+
+      expect(globalThis.window.removeEventListener).toHaveBeenCalledWith('resize', expect.any(Function));
+      expect(resizeListeners.size).toBe(0);
+      expect(resizeObserverInstances[0].disconnect).toHaveBeenCalledTimes(1);
+    }
+    finally {
+      globalThis.window = originalWindow;
+      vi.useRealTimers();
+    }
+  });
+
+  it('marks framed evaluation resize suppression as active only during iframe sync', async () => {
+    vi.useFakeTimers();
+
+    const question = new CodeQuestion({}, 1);
+    const originalWindow = globalThis.window;
+
+    globalThis.window = {
+      ...originalWindow,
+      H5P: {
+        isFramed: true,
+        externalEmbed: false,
+      },
+      frameElement: {
+        style: {},
+      },
+    };
+
+    Object.defineProperty(globalThis.document.body, 'scrollHeight', {
+      configurable: true,
+      value: 640,
+    });
+    Object.defineProperty(globalThis.document.documentElement, 'scrollHeight', {
+      configurable: true,
+      value: 630,
+    });
+
+    try {
+      question.scheduleEvaluationFrameSync();
+
+      expect(question.suppressInternalFrameResizeEvents).toBe(true);
+
+      await vi.runAllTimersAsync();
+
+      expect(question.suppressInternalFrameResizeEvents).toBe(false);
+    }
+    finally {
+      globalThis.window = originalWindow;
+      vi.useRealTimers();
+    }
   });
 
   it('normalizes showConsole and enableDueDate flags from params', () => {
@@ -211,6 +439,8 @@ describe('CodeQuestion', () => {
   it('resets stop signal before a manual run starts', () => {
     const question = new CodeQuestion({}, 1);
     const run = vi.fn();
+    question.removeFeedback = vi.fn();
+    question.codeTester = { reset: vi.fn() };
     question.codeContainer = {
       stopSignal: true,
       stop_signal: true,
@@ -221,6 +451,8 @@ describe('CodeQuestion', () => {
 
     expect(question.codeContainer.stopSignal).toBe(false);
     expect(question.codeContainer.stop_signal).toBe(false);
+    expect(question.removeFeedback).toHaveBeenCalledTimes(1);
+    expect(question.codeTester.reset).toHaveBeenCalledTimes(1);
     expect(run).toHaveBeenCalledTimes(1);
   });
 
@@ -268,6 +500,24 @@ describe('CodeQuestion', () => {
     expect(inlineContainer.destroy).toHaveBeenCalledTimes(1);
     expect(question.codeContainer).toBeNull();
     expect(question.codeContainers.size).toBe(0);
+  });
+
+  it('adds the concrete question class to the outer H5P question root', () => {
+    const question = new CodeQuestion({}, 1);
+    const root = document.createElement('div');
+    root.className = 'h5p-question';
+
+    question.contentType = 'text_only';
+    question.setContent = vi.fn((content) => {
+      const contentWrapper = document.createElement('div');
+      contentWrapper.className = 'h5p-question-content';
+      contentWrapper.append(content);
+      root.append(contentWrapper);
+    });
+
+    question.registerDomElements();
+
+    expect(root.classList.contains('h5p-codequestion')).toBe(true);
   });
 
   it('exposes a direct destroy() teardown entrypoint', () => {
