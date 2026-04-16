@@ -2,7 +2,7 @@
   "title": "Code Question",
   "description": "Base Class for Code Questions",
   "majorVersion": 6,
-  "minorVersion": 61,
+  "minorVersion": 69,
   "patchVersion": 0,
   "runnable": 0,
   "coreApi": {
@@ -34,14 +34,14 @@
     {
       "machineName": "H5P.LibCodeTools",
       "majorVersion": 6,
-      "minorVersion": 61
+      "minorVersion": 69
     }
   ],
   "editorDependencies": [
     {
       "machineName": "H5PEditor.CodeWidget",
       "majorVersion": 6,
-      "minorVersion": 61
+      "minorVersion": 69
     }
   ]
 }
