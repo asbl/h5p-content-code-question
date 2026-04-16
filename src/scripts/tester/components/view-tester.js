@@ -23,6 +23,22 @@ export default class TestCaseView {
   }
 
   resetDOM() {
-    // Implemented in subclasses
+    const container = this.getTestCasesAreaDiv();
+    if (!container) {
+      return;
+    }
+
+    const freshContainer = this.getDOM();
+
+    if (!freshContainer) {
+      container.innerHTML = '';
+      container.className = 'testcases-area';
+      return;
+    }
+
+    container.className = freshContainer.className || 'testcases-area';
+    container.replaceChildren(
+      ...Array.from(freshContainer.childNodes).map((node) => node.cloneNode(true))
+    );
   }
 }
