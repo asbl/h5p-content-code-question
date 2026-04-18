@@ -58,6 +58,15 @@ export default class TestSession {
   }
 
   /**
+   * Resets the input pointer for the current test case without touching outputs
+   * or the active test case index.
+   * @returns {void}
+   */
+  resetCurrentTestCaseInputs() {
+    this.inputIndex = 0;
+  }
+
+  /**
    * Advances to the next test case.
    * @throws {Error} If no further test cases are available.
    * @returns {void}

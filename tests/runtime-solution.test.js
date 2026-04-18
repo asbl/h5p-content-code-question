@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { SolutionRuntimeMixin } from '../src/scripts/runtime/runtime-solution.js';
+import { TestRuntimeMixin } from '../src/scripts/runtime/runtime-test.js';
+import TestSession from '../src/scripts/tester/components/session-tester.js';
 
 class BaseRuntime {
   constructor(_resizeActionHandler, code, options = {}) {
@@ -20,6 +22,7 @@ class BaseRuntime {
 }
 
 const SolutionRuntime = SolutionRuntimeMixin(BaseRuntime);
+const TestRuntime = TestRuntimeMixin(BaseRuntime);
 
 describe('SolutionRuntimeMixin', () => {
   it('advances the session input cursor when consuming input', async () => {
@@ -59,5 +62,61 @@ describe('SolutionRuntimeMixin', () => {
     runtime.setup({});
 
     expect(runtime.solutions[3]).toBe(true);
+  });
+});
+
+describe('TestRuntimeMixin', () => {
+  it('rewinds testcase inputs after the reference solution consumed them', async () => {
+    const session = new TestSession([{ inputs: ['3'], outputs: [] }]);
+    const solutionInputHandler = vi.fn(async () => {
+      const value = session.getInput();
+      session.nextInput();
+      return value;
+    });
+    const learnerInputHandler = vi.fn(async () => {
+      const value = session.getInput();
+      session.nextInput();
+      return value;
+    });
+
+    class ConcreteTestRuntime extends TestRuntime {
+      getCode() {
+        return 'print(input())';
+      }
+
+      async runCode() {
+        await learnerInputHandler();
+      }
+
+      createSolutionRuntime() {
+        return {
+          start: async () => {
+            await solutionInputHandler();
+          },
+        };
+      }
+    }
+
+    const runtime = new ConcreteTestRuntime(
+      vi.fn(),
+      'print(input())',
+      {
+        runSolution: true,
+        session,
+        view: { setExpectedGenerationState: vi.fn() },
+        reset: vi.fn(),
+        evaluateTestCase: vi.fn(),
+        nextTestCase: vi.fn(),
+      },
+      {},
+    );
+
+    runtime.setup({});
+    runtime.init();
+    await runtime.run();
+
+    expect(solutionInputHandler).toHaveResolvedWith('3');
+    expect(learnerInputHandler).toHaveResolvedWith('3');
+    expect(session.inputIndex).toBe(1);
   });
 });

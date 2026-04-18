@@ -40,6 +40,7 @@ export const TestRuntimeMixin = (Base) =>
      */
     async run() {
       await this.runSolution();
+      this.codeTester?.session?.resetCurrentTestCaseInputs?.();
       await this.prepareForRun();
       await this.runCode(this.getCode());
     }

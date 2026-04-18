@@ -33,12 +33,12 @@ export default class TestCaseView {
     if (!freshContainer) {
       container.innerHTML = '';
       container.className = 'testcases-area';
+      container.hidden = false;
+      container.removeAttribute('style');
       return;
     }
 
-    container.className = freshContainer.className || 'testcases-area';
-    container.replaceChildren(
-      ...Array.from(freshContainer.childNodes).map((node) => node.cloneNode(true))
-    );
+    freshContainer.className = freshContainer.className || 'testcases-area';
+    container.replaceWith(freshContainer);
   }
 }
