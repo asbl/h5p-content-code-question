@@ -49,6 +49,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
           {
             identifier: 'fullscreenEnable',
             label: '',
+            ariaLabel: () => getCodeQuestionL10nValue(this.l10n, 'fullscreenEnter') || 'Enter fullscreen',
             icon: 'fa-solid fa-maximize',
             class: 'fullscreenenable',
             weight: 9,
@@ -56,6 +57,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
           {
             identifier: 'fullscreenDisable',
             label: '',
+            ariaLabel: () => getCodeQuestionL10nValue(this.l10n, 'fullscreenExit') || 'Exit fullscreen',
             icon: 'fa-solid fa-down-left-and-up-right-to-center',
             class: 'fullscreendisable',
             state: 'hidden',
@@ -391,9 +393,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     const message = this.getLoadErrorMessage(error);
 
     if (!dialogQueue) {
-      if (typeof window?.alert === 'function') {
-        window.alert(message);
-      }
+      console.error(message);
       return;
     }
 
@@ -582,6 +582,8 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
 
     this.getButtonManager().hideButton('fullscreenEnable');
     this.getButtonManager().showButton('fullscreenDisable');
+    this.getButtonManager().getButton?.('fullscreenDisable')?.setAttribute('aria-expanded', 'true');
+    this.getButtonManager().getButton?.('fullscreenEnable')?.setAttribute('aria-expanded', 'true');
     this.fullscreen = true;
     fullscreenHost.classList.add('fullscreen', 'codequestion-fullscreen-host');
     fullscreenHost.classList.remove('theme-light', 'theme-dark');
@@ -602,6 +604,8 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
 
     this.getButtonManager().hideButton('fullscreenDisable');
     this.getButtonManager().showButton('fullscreenEnable');
+    this.getButtonManager().getButton?.('fullscreenDisable')?.setAttribute('aria-expanded', 'false');
+    this.getButtonManager().getButton?.('fullscreenEnable')?.setAttribute('aria-expanded', 'false');
     this.fullscreen = false;
     fullscreenHost?.classList.remove('fullscreen', 'codequestion-fullscreen-host', 'theme-light', 'theme-dark');
 

@@ -2,6 +2,18 @@
     position: relative
 }
 
+.h5p-codequestion .sr-only {
+    border: 0;
+    clip: rect(0, 0, 0, 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+}
+
 .h5p-codequestion .testcases-area {
     margin-top: 16px;
     padding: 16px;
@@ -82,6 +94,58 @@
 
 .h5p-codequestion .table-testcase tbody td {
     background-color: #fff;
+}
+
+.h5p-codequestion .table-testcase-container.image-tester tbody td {
+    padding: 8px;
+}
+
+.h5p-codequestion .tester-image img {
+    background-color: white;
+}
+
+.h5p-codequestion .testcases-area td.expected,
+.h5p-codequestion .testcases-area td.user-output {
+    position: relative;
+}
+
+.h5p-codequestion .testcases-area .expected img,
+.h5p-codequestion .testcases-area .user-output img {
+    width: 150px;
+    height: 150px;
+}
+
+.h5p-codequestion .testcases-area .canvas-wrapper {
+    position: relative;
+    background-color: white;
+    width: 150px;
+    height: 150px;
+    border: 1px solid gray;
+}
+
+.h5p-codequestion .testcases-area .expected canvas,
+.h5p-codequestion .testcases-area .user-output canvas {
+    width: 150px;
+    height: 150px;
+    margin: 0px !important;
+}
+
+.h5p-codequestion .testcases-area .expected canvas:nth-child(2),
+.h5p-codequestion .testcases-area .user-output canvas:nth-child(2) {
+    margin-top: -150px !important;
+}
+
+.h5p-codequestion .testcases-area .expected canvas.merged,
+.h5p-codequestion .testcases-area .user-output canvas.merged {
+    width: 150px;
+    height: 150px;
+    background-color: white;
+    border: 1px solid gray;
+}
+
+.h5p-codequestion .testcases-area .tester-image canvas.merged,
+.h5p-codequestion .testcases-area .user-output canvas.merged {
+    background-color: white;
 }
 
 .h5p-codequestion .image-tester__status {
@@ -730,6 +794,24 @@
 @media (max-width: 720px) {
     .h5p-codequestion .testcases-area {
         padding: 12px;
+    }
+
+    .h5p-codequestion .testcases-area .expected img,
+    .h5p-codequestion .testcases-area .user-output img,
+    .h5p-codequestion .testcases-area .canvas-wrapper,
+    .h5p-codequestion .testcases-area .expected canvas.merged,
+    .h5p-codequestion .testcases-area .user-output canvas.merged,
+    .h5p-codequestion .testcases-area .expected canvas,
+    .h5p-codequestion .testcases-area .user-output canvas {
+        width: min(150px, 100%);
+        max-width: 100%;
+        height: auto;
+        aspect-ratio: 1 / 1;
+    }
+
+    .h5p-codequestion .testcases-area .expected canvas:nth-child(2),
+    .h5p-codequestion .testcases-area .user-output canvas:nth-child(2) {
+        margin-top: calc(-1 * min(150px, 100%)) !important;
     }
 
     .h5p-codequestion .tables-tester-area {

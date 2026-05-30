@@ -14,7 +14,7 @@ export default class TestCaseView {
     return document.getElementById(this.id);
   }
 
-  update(index, passed) {
+  update(_index, _passed) {
     // DOM-Update, implemented in subclasses
   }
 

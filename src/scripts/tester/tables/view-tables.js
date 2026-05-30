@@ -40,6 +40,7 @@ export default class TablesView extends TestCaseView {
     if (!container) return;
 
     container.innerHTML = '';
+    container.setAttribute('aria-live', 'polite');
     container.classList.remove('matching', 'not-matching');
     container.classList.add(comparison.identical ? 'matching' : 'not-matching');
 
@@ -75,6 +76,8 @@ export default class TablesView extends TestCaseView {
     copyBtn.textContent = getCodeQuestionL10nValue(this.l10n, 'copy');
     const copyStatus = document.createElement('div');
     copyStatus.classList.add('copy-status');
+    copyStatus.setAttribute('role', 'status');
+    copyStatus.setAttribute('aria-live', 'polite');
     copyBtn.onclick = () =>
       navigator.clipboard.writeText(this.formatTable(this.resultTable, comparison))
         .then(() => {
@@ -221,13 +224,19 @@ export default class TablesView extends TestCaseView {
     return this.rowExistsInCounterpart(row, role) ? '✓' : '✕';
   }
 
+  getRowStatusLabel(row, role) {
+    return this.rowExistsInCounterpart(row, role)
+      ? (this.l10n.tableRowMatches || 'Matching row')
+      : (this.l10n.tableRowDiffers || 'Different row');
+  }
+
   formatCellContent(cell, row, role, rowIndex, columnIndex) {
     const value = cell ?? '';
     if (role !== 'answer' || columnIndex !== 0) {
       return `${value}`;
     }
 
-    return `<span class="table-row-status-symbol" aria-hidden="true">${this.getRowStatusSymbol(row, role)}</span><span class="table-cell-value">${value}</span>`;
+    return `<span class="table-row-status-symbol" aria-hidden="true">${this.getRowStatusSymbol(row, role)}</span><span class="sr-only">${this.getRowStatusLabel(row, role)}: </span><span class="table-cell-value">${value}</span>`;
   }
 
   /**
@@ -247,7 +256,7 @@ export default class TablesView extends TestCaseView {
     // Columns HTML
     const columnsHtml = (table.columns || []).map((col, cIndex) => {
       const isMatch = comparison?.colMatches?.[cIndex] ?? false; // safe access
-      return `<th class="${this.getHeaderClass(isMatch)}">${col}</th>`;
+      return `<th scope="col" class="${this.getHeaderClass(isMatch)}">${col}</th>`;
     }).join('');
 
     // Rows HTML

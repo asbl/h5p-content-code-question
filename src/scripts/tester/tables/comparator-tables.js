@@ -99,12 +99,12 @@ export default class TablesComparator {
     result.extraColumns = (actTable.columns || []).filter((column) => !(expTable.columns || []).includes(column));
 
     // --- Rows ---
-    const expectedRows = (expTable.values || []).map(r => r.map(v => String(v).trim()).join('|'));
-    const actualRows = (actTable.values || []).map(r => r.map(v => String(v).trim()).join('|'));
+    const expectedRows = (expTable.values || []).map((r) => r.map((v) => String(v).trim()).join('|'));
+    const actualRows = (actTable.values || []).map((r) => r.map((v) => String(v).trim()).join('|'));
 
-    result.rowMatches = expectedRows.map(row => actualRows.includes(row));
+    result.rowMatches = expectedRows.map((row) => actualRows.includes(row));
     result.matchingRows = result.rowMatches.filter(Boolean).length;
-    result.nonMatchingRows = result.rowMatches.filter(m => !m).length;
+    result.nonMatchingRows = result.rowMatches.filter((m) => !m).length;
     result.missingRows = (expTable.values || []).filter((row) => {
       const serialized = row.map((value) => String(value).trim()).join('|');
       return !actualRows.includes(serialized);

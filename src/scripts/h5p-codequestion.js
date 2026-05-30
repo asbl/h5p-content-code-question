@@ -661,12 +661,77 @@ export default class CodeQuestion extends H5P.Question {
     this.destroyCodeContainers();
   }
 
+  /**
+   * Builds a persistable state entry from a code container.
+   * @param {object} container Code container.
+   * @returns {object|null} Persistable state entry or null.
+   */
+  getContainerState(container) {
+    const snapshot = container?.getWorkspaceSnapshot?.();
+    const defaultSnapshot = container?.getDefaultWorkspaceSnapshot?.();
+
+    if (!snapshot?.files?.length) {
+      return null;
+    }
+
+    if (defaultSnapshot && JSON.stringify(snapshot) === JSON.stringify(defaultSnapshot)) {
+      return null;
+    }
+
+    return { workspaceSnapshot: snapshot };
+  }
+
+  /**
+   * Applies a previously persisted state entry to a code container.
+   * @param {object} container Code container.
+   * @param {object} state Persisted state entry.
+   * @returns {void}
+   */
+  applyContainerState(container, state = {}) {
+    if (state?.workspaceSnapshot) {
+      container?.setWorkspaceSnapshot?.(state.workspaceSnapshot);
+    }
+  }
+
+  /**
+   * Returns the current learner state for H5P persistence (called by the H5P framework).
+   * Saves assignment and inline editor workspaces so code, Blockly and fill-blank
+   * answers can be restored from extras.previousState on the next page load.
+   * @returns {object|undefined} State object, or undefined when there is nothing to save.
+   */
+  getState() {
+    const state = {};
+    const assignmentState = this.getContainerState(this.codeContainer);
+    const contentItemStates = {};
+
+    if (assignmentState) {
+      state.assignmentState = assignmentState;
+    }
+
+    this.codeContainers.forEach((container, containerId) => {
+      const containerState = this.getContainerState(container);
+      if (containerState) {
+        contentItemStates[containerId] = containerState;
+      }
+    });
+
+    if (Object.keys(contentItemStates).length > 0) {
+      state.contentItemStates = contentItemStates;
+    }
+
+    return Object.keys(state).length > 0 ? state : undefined;
+  }
+
   getL10n() {
     return this.l10n;
   }
 
   getQuestionName() {
     return 'h5p-codequestion';
+  }
+
+  getQuestionClassNames() {
+    return [...new Set(['h5p-codequestion', this.getQuestionName()].filter(Boolean))];
   }
 
   getTitle() {
@@ -731,7 +796,7 @@ export default class CodeQuestion extends H5P.Question {
     const questionRoot = this.parentDiv?.closest('.h5p-question');
 
     if (questionRoot) {
-      questionRoot.classList.add(this.getQuestionName());
+      questionRoot.classList.add(...this.getQuestionClassNames());
     }
   }
 
@@ -747,7 +812,7 @@ export default class CodeQuestion extends H5P.Question {
       throw new Error('parentDiv is not initialized');
     }
     this.parentDiv.id = this.codeQuestionUID;
-    this.parentDiv.classList.add(this.getQuestionName());
+    this.parentDiv.classList.add(...this.getQuestionClassNames());
   }
 
   createContentContainer() {
@@ -804,16 +869,39 @@ export default class CodeQuestion extends H5P.Question {
    */
   appendResolvedMarkdown(container, markdown) {
     const markdownDiv = markdown.getMarkdownDiv();
+    const fallbackText = markdown.text ?? '';
+
+    const notifyRendered = () => {
+      try {
+        this.resizeActionHandler();
+      }
+      catch (_error) {
+        // Rendering text is more important than surfacing resize failures from test doubles.
+      }
+    };
+
+    const appendFallback = () => {
+      const fallback = document.createElement('div');
+      fallback.className = 'markdown-fallback';
+      fallback.textContent = fallbackText;
+      container.append(fallback);
+      notifyRendered();
+    };
 
     if (typeof markdownDiv?.then === 'function') {
       markdownDiv
         .then((resolvedMarkdownDiv) => {
           if (resolvedMarkdownDiv) {
             container.append(resolvedMarkdownDiv);
+            notifyRendered();
+            return;
           }
+
+          appendFallback();
         })
         .catch((error) => {
           console.error('Failed to render markdown content', error);
+          appendFallback();
         });
 
       return;
@@ -821,7 +909,11 @@ export default class CodeQuestion extends H5P.Question {
 
     if (markdownDiv) {
       container.append(markdownDiv);
+      notifyRendered();
+      return;
     }
+
+    appendFallback();
   }
 
   /**
@@ -852,17 +944,22 @@ export default class CodeQuestion extends H5P.Question {
     }
     else {
       const editorWrapper = document.createElement('div');
+      const containerId = content.id || index;
+      const savedState = this.extras?.previousState?.contentItemStates?.[containerId];
+      const savedWorkspaceState = savedState?.blocklyWorkspaceState;
+      const contentParams = savedWorkspaceState
+        ? { ...content, blocklyWorkspaceState: savedWorkspaceState }
+        : content;
       const factory = this.getContainerFactory(
         editorWrapper,
         this.getDecodedCode(content.code),
         false,
-        content,
+        contentParams,
       );
       const codeContainer = factory.create();
+      this.applyContainerState(codeContainer, savedState);
       container.append(codeContainer.getDOM());
 
-
-      const containerId = content.id || index;
       this.codeContainers.set(containerId, codeContainer);
     }
     return container;
@@ -903,6 +1000,11 @@ export default class CodeQuestion extends H5P.Question {
       this.defaultCode,
       true,
     ).create();
+
+    this.applyContainerState(
+      this.codeContainer,
+      this.extras?.previousState?.assignmentState,
+    );
   }
 
   renderCodeContainer(contentPartsDiv) {

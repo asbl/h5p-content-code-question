@@ -472,6 +472,168 @@ describe('CodeQuestion', () => {
     expect(question.shouldStop()).toBe(false);
   });
 
+  it('persists assignment and inline editor workspace snapshots', () => {
+    const question = new CodeQuestion({}, 1);
+    const assignmentSnapshot = {
+      entryFileName: 'main.py',
+      activeFileName: 'main.py',
+      files: [
+        {
+          name: 'main.py',
+          code: 'print("answer")',
+          visible: true,
+          editable: true,
+          isEntry: true,
+        },
+      ],
+    };
+    const inlineSnapshot = {
+      entryFileName: 'main.py',
+      activeFileName: 'main.py',
+      files: [
+        {
+          name: 'main.py',
+          code: 'x = [[blank:1]]',
+          visible: true,
+          editable: true,
+          isEntry: true,
+          blankValues: { 1: '5' },
+        },
+      ],
+    };
+
+    question.codeContainer = {
+      getWorkspaceSnapshot: vi.fn(() => assignmentSnapshot),
+    };
+    question.codeContainers.set('inline-1', {
+      getWorkspaceSnapshot: vi.fn(() => inlineSnapshot),
+    });
+
+    expect(question.getState()).toEqual({
+      assignmentState: {
+        workspaceSnapshot: assignmentSnapshot,
+      },
+      contentItemStates: {
+        'inline-1': {
+          workspaceSnapshot: inlineSnapshot,
+        },
+      },
+    });
+  });
+
+  it('does not persist unchanged editor workspace snapshots', () => {
+    const question = new CodeQuestion({}, 1);
+    const defaultSnapshot = {
+      entryFileName: 'main.py',
+      activeFileName: 'main.py',
+      files: [
+        {
+          name: 'main.py',
+          code: 'print("default")',
+          visible: true,
+          editable: true,
+          isEntry: true,
+        },
+      ],
+    };
+
+    question.codeContainer = {
+      getWorkspaceSnapshot: vi.fn(() => defaultSnapshot),
+      getDefaultWorkspaceSnapshot: vi.fn(() => defaultSnapshot),
+    };
+
+    expect(question.getState()).toBeUndefined();
+  });
+
+  it('keeps legacy inline Blockly restore while applying workspace snapshots with precedence', () => {
+    const question = new CodeQuestion({}, 1, {
+      previousState: {
+        contentItemStates: {
+          inline: {
+            blocklyWorkspaceState: { legacy: true },
+            workspaceSnapshot: {
+              entryFileName: 'main.py',
+              activeFileName: 'main.py',
+              files: [
+                {
+                  name: 'main.py',
+                  code: 'print("workspace")',
+                  visible: true,
+                  editable: true,
+                  isEntry: true,
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+    const codeContainer = {
+      getDOM: vi.fn(() => document.createElement('div')),
+    };
+    const factory = {
+      create: vi.fn(() => codeContainer),
+    };
+    const target = document.createElement('div');
+
+    question.getContainerFactory = vi.fn(() => factory);
+    question.applyContainerState = vi.fn();
+
+    question.renderCodeContent(target, {
+      id: 'inline',
+      type: 'code',
+      code: 'print("default")',
+    }, 0);
+
+    expect(question.getContainerFactory).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      'print("default")',
+      false,
+      expect.objectContaining({
+        blocklyWorkspaceState: { legacy: true },
+      }),
+    );
+    expect(question.applyContainerState).toHaveBeenCalledWith(
+      codeContainer,
+      expect.objectContaining({
+        workspaceSnapshot: expect.any(Object),
+      }),
+    );
+  });
+
+  it('restores assignment workspace snapshot when creating the main code container', () => {
+    const workspaceSnapshot = {
+      entryFileName: 'main.py',
+      activeFileName: 'main.py',
+      files: [
+        {
+          name: 'main.py',
+          code: 'print("restored")',
+          visible: true,
+          editable: true,
+          isEntry: true,
+        },
+      ],
+    };
+    const codeContainer = {
+      setWorkspaceSnapshot: vi.fn(),
+    };
+    const question = new CodeQuestion({}, 1, {
+      previousState: {
+        assignmentState: { workspaceSnapshot },
+      },
+    });
+
+    question.getContainerFactory = vi.fn(() => ({
+      create: () => codeContainer,
+    }));
+
+    question.createCodeContainer();
+
+    expect(codeContainer.setWorkspaceSnapshot).toHaveBeenCalledWith(workspaceSnapshot);
+    expect(question.codeContainer).toBe(codeContainer);
+  });
+
   it('wires ManualRuntimeFactory stop callback to shouldStop()', () => {
     const question = new CodeQuestion({}, 1);
     question.shouldStop = vi.fn(() => true);
@@ -518,6 +680,33 @@ describe('CodeQuestion', () => {
     question.registerDomElements();
 
     expect(root.classList.contains('h5p-codequestion')).toBe(true);
+  });
+
+  it('keeps the shared codequestion class when a subtype provides its own class', () => {
+    class CustomQuestion extends CodeQuestion {
+      getQuestionName() {
+        return 'h5p-custom-question';
+      }
+    }
+
+    const question = new CustomQuestion({}, 1);
+    const root = document.createElement('div');
+    root.className = 'h5p-question';
+
+    question.contentType = 'text_only';
+    question.setContent = vi.fn((content) => {
+      const contentWrapper = document.createElement('div');
+      contentWrapper.className = 'h5p-question-content';
+      contentWrapper.append(content);
+      root.append(contentWrapper);
+    });
+
+    question.registerDomElements();
+
+    expect(root.classList.contains('h5p-codequestion')).toBe(true);
+    expect(root.classList.contains('h5p-custom-question')).toBe(true);
+    expect(question.parentDiv.classList.contains('h5p-codequestion')).toBe(true);
+    expect(question.parentDiv.classList.contains('h5p-custom-question')).toBe(true);
   });
 
   it('exposes a direct destroy() teardown entrypoint', () => {
@@ -596,5 +785,21 @@ describe('CodeQuestion', () => {
     finally {
       H5P.Markdown = originalMarkdown;
     }
+  });
+
+  it('shows fallback text and resizes when markdown content rendering fails', async () => {
+    const question = new CodeQuestion({}, 1);
+    question.resizeActionHandler = vi.fn();
+    const container = document.createElement('div');
+
+    question.appendResolvedMarkdown(container, {
+      text: 'Visible fallback',
+      getMarkdownDiv: () => Promise.reject(new Error('markdown unavailable')),
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(container.querySelector('.markdown-fallback')?.textContent).toBe('Visible fallback');
+    expect(question.resizeActionHandler).toHaveBeenCalledTimes(1);
   });
 });

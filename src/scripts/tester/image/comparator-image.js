@@ -232,7 +232,7 @@ export class ImageTestCaseComparator extends TestCaseComparator {
    * @param {string} output - Output string (not used in image comparison)
    * @returns {Promise<boolean>} True if the number of differing pixels is below the maxDiff threshold
    */
-  async compare(testCaseIndex, testCase, output) {
+  async compare(testCaseIndex, _testCase, _output) {
     const outputCanvas = this.getOutputCanvas(testCaseIndex);
     const expectedCanvas = this.getExpectedCanvas(testCaseIndex);
     if (!outputCanvas || !expectedCanvas) return false;

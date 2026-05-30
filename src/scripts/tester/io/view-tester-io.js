@@ -19,7 +19,19 @@ export class IOTesterView extends TestCaseView {
     if (!row) return;
     row.querySelector('.output').innerHTML = output.join('<br/>') || '--';
     row.classList.toggle('test-passed', passed);
-    row.querySelector('.passed').textContent = passed ? '✓' : '✗';
+    this.setPassedCellStatus(row.querySelector('.passed'), passed);
+  }
+
+  setPassedCellStatus(cell, passed) {
+    if (!cell) return;
+
+    const label = passed
+      ? (this.l10n.testPassed || this.l10n.successText || 'Test passed')
+      : (this.l10n.testFailed || this.l10n.failedText || 'Test failed');
+
+    cell.textContent = passed ? '✓' : '✗';
+    cell.setAttribute('aria-label', label);
+    cell.title = label;
   }
 
   getDOM() {
@@ -92,12 +104,14 @@ export class IOTesterView extends TestCaseView {
       const outputCell = document.createElement('td');
       outputCell.className = `output output-${i}`;
       outputCell.dataset.label = headers[2];
+      outputCell.setAttribute('aria-live', 'polite');
       bodyRow.appendChild(outputCell);
 
       // Passed cell
       const passedCell = document.createElement('td');
       passedCell.className = `passed passed-${i}`;
       passedCell.dataset.label = headers[3];
+      passedCell.setAttribute('aria-live', 'polite');
       bodyRow.appendChild(passedCell);
 
       // Append row and table

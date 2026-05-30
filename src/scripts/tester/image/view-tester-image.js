@@ -1,5 +1,5 @@
 import TestCaseView from '../components/view-tester';
-import DateHandler from "@scripts/tester/components/date-handler";
+import DateHandler from '@scripts/tester/components/date-handler';
 
 /**
  *
@@ -74,6 +74,7 @@ export default class ImageTesterView extends TestCaseView {
       const tdExpected = document.createElement('td');
       tdExpected.className = `expected tester-image expected-${i}`;
       tdExpected.dataset.label = headers[1];
+      tdExpected.setAttribute('aria-live', 'polite');
       tdExpected.appendChild(this.createStatusElement(this.l10n.imageTesterExpectedOutputPending));
       trBody.appendChild(tdExpected);
 
@@ -81,6 +82,7 @@ export default class ImageTesterView extends TestCaseView {
       const tdOutput = document.createElement('td');
       tdOutput.className = `output user-output output-${i}`;
       tdOutput.dataset.label = headers[2];
+      tdOutput.setAttribute('aria-live', 'polite');
       tdOutput.appendChild(this.createStatusElement(this.l10n.imageTesterAwaitingOutput));
       trBody.appendChild(tdOutput);
 
@@ -88,6 +90,7 @@ export default class ImageTesterView extends TestCaseView {
       const tdPassed = document.createElement('td');
       tdPassed.className = `passed passed-${i}`;
       tdPassed.dataset.label = headers[3];
+      tdPassed.setAttribute('aria-live', 'polite');
       trBody.appendChild(tdPassed);
 
       tbody.appendChild(trBody);
@@ -101,9 +104,9 @@ export default class ImageTesterView extends TestCaseView {
 
   /**
    * Merges all canvases for a given test case and updates the DOM.
-   * @param {number} testCaseIndex - Index of the test case.
+   * @param {number} _testCaseIndex - Index of the test case.
    */
-  mergeOutputImage(testCaseIndex) {
+  mergeOutputImage(_testCaseIndex) {
     const outputCell = this.getOutputCell();
     const mergedCanvas = this._mergeCanvases(outputCell);
 
@@ -210,12 +213,24 @@ export default class ImageTesterView extends TestCaseView {
     );
     if (this.results.getSingleScore(this.session.testCaseIndex)) {
       row.classList.add('test-passed');
-      row.cells[3].textContent = '✓';
+      this.setPassedCellStatus(row.cells[3], true);
     }
     else {
       row.classList.remove('test-passed');
-      row.cells[3].textContent = '✗';
+      this.setPassedCellStatus(row.cells[3], false);
     }
+  }
+
+  setPassedCellStatus(cell, passed) {
+    if (!cell) return;
+
+    const label = passed
+      ? (this.l10n.testPassed || this.l10n.successText || 'Test passed')
+      : (this.l10n.testFailed || this.l10n.failedText || 'Test failed');
+
+    cell.textContent = passed ? '✓' : '✗';
+    cell.setAttribute('aria-label', label);
+    cell.title = label;
   }
 
   /**
@@ -279,6 +294,8 @@ export default class ImageTesterView extends TestCaseView {
     const target = document.createElement('canvas');
     target.width = canvases[0].width;
     target.height = canvases[0].height;
+    target.setAttribute('role', 'img');
+    target.setAttribute('aria-label', this.l10n.imageTesterCanvasLabel || 'Rendered program image');
     const ctx = target.getContext('2d');
     canvases.forEach((c) => ctx.drawImage(c, 0, 0));
     target.classList.add('merged');
@@ -286,7 +303,7 @@ export default class ImageTesterView extends TestCaseView {
   }
 
   // Canvas Handling
-  addCanvas(canvasWrapper, type, identifier) {
+  addCanvas(canvasWrapper, type, _identifier) {
     let targetCell = null;
     if (type === 'testcase') {
       targetCell = this.getOutputCell();

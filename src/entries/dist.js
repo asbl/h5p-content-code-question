@@ -12,7 +12,7 @@ import TestRuntimeFactory from '../scripts/runtime/factory-runtime-test.js';
 import ManualRuntimeFactory from '../scripts/runtime/factory-runtime-manual.js';
 import ContainerFactory from '../scripts/container/factory-container.js';
 // Additional Classes which can be overwritten
-import {Runtime} from '../scripts/runtime/runtime';
+import { Runtime } from '../scripts/runtime/runtime';
 import CodeQuestionContainer from '../scripts/container/codequestion-container';
 // css
 import '../styles/h5p-code-question.css';

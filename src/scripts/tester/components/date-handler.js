@@ -47,7 +47,6 @@ export default class DateHandler {
     const dueDateBadge = document.createElement('div');
     dueDateBadge.className = 'due-date-badge'; // optional CSS class
     dueDateBadge.classList.add(this.getDueDateStatusClass());
-    dueDateBadge.setAttribute('title', this.getDueText());
     dueDateBadge.setAttribute('aria-label', this.getDueText());
     const dateDiv = document.createElement('div');
     dateDiv.className = 'due-date'; // optional CSS class

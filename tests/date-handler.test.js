@@ -50,6 +50,7 @@ describe('DateHandler', () => {
     const badge = handler.getDueDateBadge();
 
     expect(badge.classList.contains('expired')).toBe(true);
-    expect(badge.getAttribute('title')).toBe('The due date (14.03.2026 12:30) has passed.');
+    expect(badge.getAttribute('title')).toBeNull();
+    expect(badge.getAttribute('aria-label')).toBe('The due date (14.03.2026 12:30) has passed.');
   });
 });
