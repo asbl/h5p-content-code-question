@@ -1,6 +1,26 @@
 import TestCaseView from '../components/view-tester';
 import DateHandler from '@scripts/tester/components/date-handler';
 
+/**
+ * Renders a list of values as text with visual line breaks.
+ * @param {HTMLElement} element - Target cell.
+ * @param {Array<*>} values - Values to render.
+ * @returns {void}
+ */
+function setMultilineText(element, values = []) {
+  const lines = Array.isArray(values) ? values : [];
+  const fragment = document.createDocumentFragment();
+
+  lines.forEach((value, index) => {
+    if (index > 0) {
+      fragment.append(document.createElement('br'));
+    }
+    fragment.append(document.createTextNode(String(value ?? '')));
+  });
+
+  element.replaceChildren(fragment);
+}
+
 // Spezifische Implementierung für IO Testcases
 export class IOTesterView extends TestCaseView {
   constructor(l10n, session, dueDate, enableDueDate = false) {
@@ -17,7 +37,8 @@ export class IOTesterView extends TestCaseView {
       `.table-testcase-${testCaseIndex} tbody tr`,
     );
     if (!row) return;
-    row.querySelector('.output').innerHTML = output.join('<br/>') || '--';
+    const outputCell = row.querySelector('.output');
+    setMultilineText(outputCell, output?.length ? output : ['--']);
     row.classList.toggle('test-passed', passed);
     this.setPassedCellStatus(row.querySelector('.passed'), passed);
   }
@@ -86,18 +107,18 @@ export class IOTesterView extends TestCaseView {
       const inputCell = document.createElement('td');
       inputCell.className = `input input-${i}`;
       inputCell.dataset.label = headers[0];
-      inputCell.innerHTML = testCase.hidden
-        ? this.l10n.hidden
-        : (testCase.inputs ?? []).join('<br/>');
+      setMultilineText(inputCell, testCase.hidden
+        ? [this.l10n.hidden]
+        : testCase.inputs);
       bodyRow.appendChild(inputCell);
 
       // Expected output cell
       const expectedCell = document.createElement('td');
       expectedCell.className = `expected expected-${i}`;
       expectedCell.dataset.label = headers[1];
-      expectedCell.innerHTML = testCase.hidden
-        ? this.l10n.hidden
-        : (testCase.outputs ?? []).join('<br/>');
+      setMultilineText(expectedCell, testCase.hidden
+        ? [this.l10n.hidden]
+        : testCase.outputs);
       bodyRow.appendChild(expectedCell);
 
       // Last output cell
@@ -123,7 +144,7 @@ export class IOTesterView extends TestCaseView {
       container.appendChild(testCaseDiv);
     });
 
-    testCasesArea.innerHTML = container.innerHTML;
+    testCasesArea.replaceChildren(container);
 
     // Return the HTML string of the whole structure
     return testCasesArea;

@@ -164,6 +164,35 @@ describe('IOComparator edge cases', () => {
 });
 
 describe('TestCaseView reset behavior', () => {
+  it('renders IO inputs, expected values and learner output as text', () => {
+    const view = new IOTesterView(
+      {
+        testInput: 'Input',
+        expectedOutput: 'Expected',
+        lastOutput: 'Output',
+        passed: 'Passed',
+        testCase: 'Test case',
+        hidden: 'Hidden',
+      },
+      {
+        testcases: [{
+          inputs: ['<img class="injected-input" src=x>'],
+          outputs: ['<img class="injected-expected" src=x>'],
+        }],
+      },
+    );
+
+    document.body.append(view.getDOM());
+    view.update(0, ['<img class="injected-output" src=x>'], false);
+
+    expect(document.querySelector('.injected-input')).toBeNull();
+    expect(document.querySelector('.injected-expected')).toBeNull();
+    expect(document.querySelector('.injected-output')).toBeNull();
+    expect(document.querySelector('.input')?.textContent).toContain('<img class="injected-input" src=x>');
+    expect(document.querySelector('.expected')?.textContent).toContain('<img class="injected-expected" src=x>');
+    expect(document.querySelector('.output')?.textContent).toContain('<img class="injected-output" src=x>');
+  });
+
   it('rebuilds the IO testcase markup after a reset', () => {
     document.body.innerHTML = '';
 

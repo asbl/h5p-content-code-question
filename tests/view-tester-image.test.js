@@ -74,6 +74,24 @@ describe('ImageTesterView', () => {
     expect(expectedCell.querySelector('.image-tester__status-spinner')).toBeNull();
   });
 
+  it('renders testcase inputs as text', () => {
+    const view = new ImageTesterView(
+      l10n,
+      {
+        testcases: [{ hidden: false, inputs: ['<img class="injected-image-input" src=x>'] }],
+        testCaseIndex: 0,
+      },
+      {},
+      null,
+      false,
+    );
+    document.body.appendChild(view.getDOM());
+
+    expect(document.querySelector('.injected-image-input')).toBeNull();
+    expect(view.getTestCasesAreaDiv().querySelector('.input')?.textContent)
+      .toContain('<img class="injected-image-input" src=x>');
+  });
+
   it('keeps a single expected canvas visible after merge preparation', () => {
     const view = createView();
     document.body.appendChild(view.getDOM());

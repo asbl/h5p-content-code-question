@@ -2,6 +2,26 @@ import TestCaseView from '../components/view-tester';
 import DateHandler from '@scripts/tester/components/date-handler';
 
 /**
+ * Renders a list of values as text with visual line breaks.
+ * @param {HTMLElement} element - Target cell.
+ * @param {Array<*>} values - Values to render.
+ * @returns {void}
+ */
+function setMultilineText(element, values = []) {
+  const lines = Array.isArray(values) ? values : [];
+  const fragment = document.createDocumentFragment();
+
+  lines.forEach((value, index) => {
+    if (index > 0) {
+      fragment.append(document.createElement('br'));
+    }
+    fragment.append(document.createTextNode(String(value ?? '')));
+  });
+
+  element.replaceChildren(fragment);
+}
+
+/**
  *
  * @description Handles rendering of test case tables, outputs, and merging of canvases.
  */
@@ -65,9 +85,9 @@ export default class ImageTesterView extends TestCaseView {
       const tdInput = document.createElement('td');
       tdInput.className = `input input-${i}`;
       tdInput.dataset.label = headers[0];
-      tdInput.innerHTML = tc.hidden
-        ? this.l10n.hidden
-        : (tc.inputs ?? []).join('<br/>');
+      setMultilineText(tdInput, tc.hidden
+        ? [this.l10n.hidden]
+        : tc.inputs);
       trBody.appendChild(tdInput);
 
       // Expected

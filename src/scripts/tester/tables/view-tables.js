@@ -61,7 +61,7 @@ export default class TablesView extends TestCaseView {
     // --- My Answer Column ---
     const outputCol = document.createElement('div');
     outputCol.classList.add('console-column');
-    outputCol.innerHTML = `<h4>${getCodeQuestionL10nValue(this.l10n, 'myAnswer')}</h4>
+    outputCol.innerHTML = `<h4>${this.escapeHtml(getCodeQuestionL10nValue(this.l10n, 'myAnswer'))}</h4>
       ${this.renderInlineSummary(comparison)}
       <pre class="tables-output">${this.formatTable(
     this.resultTable,
@@ -79,7 +79,7 @@ export default class TablesView extends TestCaseView {
     copyStatus.setAttribute('role', 'status');
     copyStatus.setAttribute('aria-live', 'polite');
     copyBtn.onclick = () =>
-      navigator.clipboard.writeText(this.formatTable(this.resultTable, comparison))
+      navigator.clipboard.writeText(this.formatTableText(this.resultTable))
         .then(() => {
           copyStatus.textContent = getCodeQuestionL10nValue(this.l10n, 'copySuccess');
         });
@@ -89,7 +89,7 @@ export default class TablesView extends TestCaseView {
     // --- Expected Column ---
     const expectedCol = document.createElement('div');
     expectedCol.classList.add('console-column');
-    expectedCol.innerHTML = `<h4>${getCodeQuestionL10nValue(this.l10n, 'expectedAnswer')}</h4>
+    expectedCol.innerHTML = `<h4>${this.escapeHtml(getCodeQuestionL10nValue(this.l10n, 'expectedAnswer'))}</h4>
       <pre class="tables-expected">${this.formatTable(
     this.targetTable,
     comparison
@@ -127,9 +127,9 @@ export default class TablesView extends TestCaseView {
 
     return `
       <div class="tables-inline-summary">
-        <p class="tables-inline-summary-status ${comparison.identical ? 'matching' : 'not-matching'}"><span class="tables-inline-status-icon" aria-hidden="true">${statusSymbol}</span><strong>${getCodeQuestionL10nValue(this.l10n, statusKey)}</strong></p>
-        <p>${getCodeQuestionL10nValue(this.l10n, 'tableDiffRowSummary')}: ${rowSummary}</p>
-        <p>${getCodeQuestionL10nValue(this.l10n, 'tableDiffColumnSummary')}: ${columnSummary}</p>
+        <p class="tables-inline-summary-status ${comparison.identical ? 'matching' : 'not-matching'}"><span class="tables-inline-status-icon" aria-hidden="true">${statusSymbol}</span><strong>${this.escapeHtml(getCodeQuestionL10nValue(this.l10n, statusKey))}</strong></p>
+        <p>${this.escapeHtml(getCodeQuestionL10nValue(this.l10n, 'tableDiffRowSummary'))}: ${this.escapeHtml(rowSummary)}</p>
+        <p>${this.escapeHtml(getCodeQuestionL10nValue(this.l10n, 'tableDiffColumnSummary'))}: ${this.escapeHtml(columnSummary)}</p>
       </div>
     `;
   }
@@ -140,28 +140,28 @@ export default class TablesView extends TestCaseView {
     if (comparison.missingColumns.length > 0) {
       details.push(this.renderSummaryItem(
         getCodeQuestionL10nValue(this.l10n, 'tableDiffMissingColumns'),
-        comparison.missingColumns.join(', '),
+        this.escapeHtml(comparison.missingColumns.join(', ')),
       ));
     }
 
     if (comparison.extraColumns.length > 0) {
       details.push(this.renderSummaryItem(
         getCodeQuestionL10nValue(this.l10n, 'tableDiffExtraColumns'),
-        comparison.extraColumns.join(', '),
+        this.escapeHtml(comparison.extraColumns.join(', ')),
       ));
     }
 
     if (comparison.missingRows.length > 0) {
       details.push(this.renderSummaryItem(
         getCodeQuestionL10nValue(this.l10n, 'tableDiffMissingRows'),
-        comparison.missingRows.map((row) => row.join(' | ')).join('<br>'),
+        comparison.missingRows.map((row) => this.escapeHtml(row.join(' | '))).join('<br>'),
       ));
     }
 
     if (comparison.extraRows.length > 0) {
       details.push(this.renderSummaryItem(
         getCodeQuestionL10nValue(this.l10n, 'tableDiffExtraRows'),
-        comparison.extraRows.map((row) => row.join(' | ')).join('<br>'),
+        comparison.extraRows.map((row) => this.escapeHtml(row.join(' | '))).join('<br>'),
       ));
     }
 
@@ -170,13 +170,19 @@ export default class TablesView extends TestCaseView {
     }
 
     return `
-      <p class="tables-diff-intro">${getCodeQuestionL10nValue(this.l10n, 'tableDiffIntro')}</p>
+      <p class="tables-diff-intro">${this.escapeHtml(getCodeQuestionL10nValue(this.l10n, 'tableDiffIntro'))}</p>
       <dl class="tables-diff-list">${details.join('')}</dl>
     `;
   }
 
   renderSummaryItem(label, value) {
-    return `<div class="tables-diff-item"><dt>${label}</dt><dd>${value}</dd></div>`;
+    return `<div class="tables-diff-item"><dt>${this.escapeHtml(label)}</dt><dd>${value}</dd></div>`;
+  }
+
+  escapeHtml(value) {
+    const element = document.createElement('span');
+    element.textContent = String(value ?? '');
+    return element.innerHTML;
   }
 
   getPrimaryTable(tableArray) {
@@ -231,12 +237,12 @@ export default class TablesView extends TestCaseView {
   }
 
   formatCellContent(cell, row, role, rowIndex, columnIndex) {
-    const value = cell ?? '';
+    const value = this.escapeHtml(cell);
     if (role !== 'answer' || columnIndex !== 0) {
       return `${value}`;
     }
 
-    return `<span class="table-row-status-symbol" aria-hidden="true">${this.getRowStatusSymbol(row, role)}</span><span class="sr-only">${this.getRowStatusLabel(row, role)}: </span><span class="table-cell-value">${value}</span>`;
+    return `<span class="table-row-status-symbol" aria-hidden="true">${this.getRowStatusSymbol(row, role)}</span><span class="sr-only">${this.escapeHtml(this.getRowStatusLabel(row, role))}: </span><span class="table-cell-value">${value}</span>`;
   }
 
   /**
@@ -256,7 +262,7 @@ export default class TablesView extends TestCaseView {
     // Columns HTML
     const columnsHtml = (table.columns || []).map((col, cIndex) => {
       const isMatch = comparison?.colMatches?.[cIndex] ?? false; // safe access
-      return `<th scope="col" class="${this.getHeaderClass(isMatch)}">${col}</th>`;
+      return `<th scope="col" class="${this.getHeaderClass(isMatch)}">${this.escapeHtml(col)}</th>`;
     }).join('');
 
     // Rows HTML
@@ -276,5 +282,21 @@ export default class TablesView extends TestCaseView {
   </table>`;
 
     return html;
+  }
+
+  /**
+   * Serializes a table for the clipboard without exposing presentation markup.
+   * @param {Array<object>} tableArray - Table array.
+   * @returns {string} Tab-separated text.
+   */
+  formatTableText(tableArray) {
+    const table = this.getPrimaryTable(tableArray);
+    if (!table) {
+      return '';
+    }
+
+    return [table.columns || [], ...(table.values || [])]
+      .map((row) => row.map((cell) => String(cell ?? '')).join('\t'))
+      .join('\n');
   }
 }

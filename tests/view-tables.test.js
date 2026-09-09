@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import ViewTables from '../src/scripts/tester/tables/view-tables';
 
@@ -60,5 +60,33 @@ describe('ViewTables', () => {
     expect(statusLine?.textContent).toContain('✓');
     expect(firstRow?.className).toContain('table-row-match');
     expect(firstRow?.innerHTML).toContain('table-row-status-symbol');
+  });
+
+  it('renders table values as text and copies plain table data', async () => {
+    document.body.innerHTML = '<div id="fixture"></div>';
+    const writeText = vi.fn().mockResolvedValue();
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    const view = new ViewTables({}, null, [{
+      columns: ['<img class="injected-column" src=x>'],
+      values: [['<img class="injected-expected" src=x>']],
+    }]);
+    view.setResultTable([{
+      columns: ['<img class="injected-result-column" src=x>'],
+      values: [['<img class="injected-result" src=x>']],
+    }]);
+
+    document.getElementById('fixture').appendChild(view.getDOM());
+    view.update();
+
+    expect(document.querySelector('[class^="injected-"]')).toBeNull();
+    expect(document.querySelector('.tables-output')?.textContent).toContain('<img class="injected-result" src=x>');
+
+    document.querySelector('.copy-badge-button').click();
+    await Promise.resolve();
+
+    expect(writeText).toHaveBeenCalledWith(
+      '<img class="injected-result-column" src=x>\n<img class="injected-result" src=x>',
+    );
   });
 });
