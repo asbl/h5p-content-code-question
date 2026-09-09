@@ -2,7 +2,7 @@
   "title": "Code Question",
   "description": "Base Class for Code Questions",
   "majorVersion": 6,
-  "minorVersion": 104,
+  "minorVersion": 105,
   "patchVersion": 0,
   "runnable": 0,
   "coreApi": {
