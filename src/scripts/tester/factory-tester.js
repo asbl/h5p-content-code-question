@@ -1,6 +1,7 @@
 import ImageTester from './image/tester-image';
 import IOTester from './io/tester-io';
 import TablesTester from './tables/tester-tables';
+import FunctionTester from './function/tester-function';
 
 export default class CodeTesterFactory {
   constructor(
@@ -11,7 +12,8 @@ export default class CodeTesterFactory {
     l10n,
     dueDate,
     enableDueDate,
-    solutionCode
+    solutionCode,
+    functionName = '', algorithmConstraints = {}, algorithmTrace = {}, enableDiagnosticLogs = false,
   ) {
     this.testcases = testcases;
     this.gradingMethod = gradingMethod;
@@ -21,6 +23,10 @@ export default class CodeTesterFactory {
     this.dueDate = dueDate;
     this.enableDueDate = enableDueDate;
     this.solutionCode = solutionCode;
+    this.functionName = functionName;
+    this.algorithmConstraints = algorithmConstraints;
+    this.algorithmTrace = algorithmTrace;
+    this.enableDiagnosticLogs = enableDiagnosticLogs === true;
   }
 
   create() {
@@ -28,6 +34,7 @@ export default class CodeTesterFactory {
       ioTestCases: IOTester,
       targetImage: ImageTester,
       bySolution: TablesTester,
+      functionTests: FunctionTester,
     };
     const TesterClass = testerMap[this.gradingMethod];
     if (!TesterClass) return null;
@@ -43,6 +50,10 @@ export default class CodeTesterFactory {
       this.dueDate,
       this.enableDueDate,
       this.solutionCode,
+      this.functionName,
+      this.algorithmConstraints,
+      this.algorithmTrace,
+      { enableDiagnosticLogs: this.enableDiagnosticLogs },
     ];
     return new TesterClass(...commonArgs);
   }

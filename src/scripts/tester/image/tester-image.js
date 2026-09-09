@@ -18,6 +18,10 @@ export default class ImageTester extends CodeTester {
     dueDate,
     enableDueDate,
     solutionCode,
+    _functionName,
+    algorithmConstraints = {},
+    algorithmTrace = {},
+    options = {},
   ) {
     super(
       testcases,
@@ -27,6 +31,11 @@ export default class ImageTester extends CodeTester {
       l10n,
       dueDate,
       enableDueDate,
+      solutionCode,
+      _functionName,
+      algorithmConstraints,
+      algorithmTrace,
+      options,
     );
     this.runSolution = true;
     this.solutionCode = solutionCode;
@@ -42,6 +51,9 @@ export default class ImageTester extends CodeTester {
     return new ImageTestCaseComparator(
       getOutputCanvas,
       getExpectedCanvas,
+      400,
+      20,
+      this.options,
     );
   }
 

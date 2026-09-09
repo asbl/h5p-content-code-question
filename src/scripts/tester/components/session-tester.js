@@ -118,6 +118,15 @@ export default class TestSession {
   }
 
   /**
+   * Replaces the recorded output for the active test case.
+   * Useful for test protocols that emit one structured result only.
+   * @param {*} output - Result to store.
+   */
+  setCurrentTestCaseOutput(output) {
+    this.outputs[this.testCaseIndex] = [output];
+  }
+
+  /**
    * Returns the currently active test case.
    * @returns {object} The current test case.
    */

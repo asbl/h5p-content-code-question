@@ -49,6 +49,14 @@
     "imageTesterCanvasLabel": "Gerendertes Programmbild",
     "dueDateUpcoming": "Abgabedatum: {date}. Einreichungen nach diesem Datum werden nur noch halb bewertet.",
     "dueDatePassed": "Das Abgabedatum ({date}) ist verstrichen. Einreichungen werden nun nur noch halb bewertet.",
-    "solutionConsoleLabel": "Lösung: {index}"
+    "solutionConsoleLabel": "Lösung: {index}",
+    "functionTesterCall": "Funktionsaufruf",
+    "functionTesterExpectedResult": "Erwartetes Ergebnis",
+    "functionTesterActualResult": "Tatsaechliches Ergebnis",
+    "functionTesterError": "Fehler",
+    "functionTesterConstraintDetail": "Vorgabe: {violations}",
+    "algorithmTrace": "Algorithmusablauf",
+    "algorithmTraceStep": "Schritt {step} von {total}: {type}",
+    "algorithmTraceIndices": "Indizes: {indices}"
   }
 }

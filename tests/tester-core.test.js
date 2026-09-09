@@ -54,6 +54,50 @@ describe('CodeTester core edge cases', () => {
     expect(onEvaluateTest).toHaveBeenCalledTimes(1);
     expect(runtimeFactory).not.toHaveBeenCalled();
   });
+
+  it('fails closed when configured algorithm constraints have no valid result', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const tester = new TestCodeTester(
+      [{ inputs: [] }], 'functionTests', vi.fn(), vi.fn(), {}, null, false,
+      null, null, { requireRecursion: true },
+    );
+
+    await tester.evaluateTestCase();
+    expect(tester.results.getScore()).toBe(0);
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    tester.setAlgorithmConstraintResult({ passed: true, violations: [] });
+    await tester.evaluateTestCase();
+    expect(tester.results.getScore()).toBe(1);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('writes diagnostic logs only when enabled', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const tester = new TestCodeTester(
+      [{ inputs: [] }], 'functionTests', vi.fn(), vi.fn(), {}, null, false,
+      null, null, {}, {}, { enableDiagnosticLogs: true },
+    );
+
+    await tester.evaluateTestCase();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Code tester:',
+      'evaluate test case',
+      expect.objectContaining({ gradingMethod: 'functionTests' }),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it('treats configured OOP constraints as active algorithm constraints', () => {
+    const tester = new TestCodeTester(
+      [{ inputs: [] }], 'functionTests', vi.fn(), vi.fn(), {}, null, false,
+      null, null, { requiredClassNames: 'Person' },
+    );
+
+    expect(tester.hasAlgorithmConstraints()).toBe(true);
+  });
 });
 
 describe('TestSession edge cases', () => {
@@ -97,6 +141,15 @@ describe('TestSession edge cases', () => {
     expect(session.getInput()).toBe('3');
     session.nextInput();
     expect(session.getInput()).toBe('6');
+  });
+
+  it('replaces output for the current testcase when a tester uses a structured result protocol', () => {
+    const session = new TestSession([{ inputs: [], outputs: [] }]);
+
+    session.addOutput('noisy stdout');
+    session.setCurrentTestCaseOutput({ status: 'passed', detail: '42' });
+
+    expect(session.outputs).toEqual([[{ status: 'passed', detail: '42' }]]);
   });
 });
 

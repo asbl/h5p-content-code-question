@@ -671,6 +671,10 @@ export default class CodeQuestion extends H5P.Question {
       this.dueDate,
       this.enableDueDate,
       this.getDecodedCode(this.solutionCode),
+      this.params.gradingSettings?.functionName || '',
+      this.params.gradingSettings?.algorithmConstraints || {},
+      this.params.gradingSettings?.algorithmTrace || {},
+      this.getCodeContainerOptions()?.enableDiagnosticLogs === true,
     );
   }
 

@@ -49,6 +49,14 @@
     "imageTesterCanvasLabel": "Rendered program image",
     "dueDateUpcoming": "Due date: {date}. Submissions after this date will be graded at half points.",
     "dueDatePassed": "The due date ({date}) has passed. Submissions will now be graded at half points.",
-    "solutionConsoleLabel": "Solution: {index}"
+    "solutionConsoleLabel": "Solution: {index}",
+    "functionTesterCall": "Function call",
+    "functionTesterExpectedResult": "Expected result",
+    "functionTesterActualResult": "Actual result",
+    "functionTesterError": "Error",
+    "functionTesterConstraintDetail": "Constraint: {violations}",
+    "algorithmTrace": "Algorithm trace",
+    "algorithmTraceStep": "Step {step} of {total}: {type}",
+    "algorithmTraceIndices": "Indices: {indices}"
   }
 }
