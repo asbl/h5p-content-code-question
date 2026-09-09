@@ -12,6 +12,7 @@
     "lastOutput": "Last Output",
     "passed": "passed?",
     "expectedOutput": "Expected Output",
+    "multipleChoiceAnswer": "Answer options",
     "instructions": "Instructions",
     "showCode": "Show Code",
     "sqlTables": "Tables",

@@ -12,6 +12,7 @@
     "lastOutput": "Letzte Ausgabe",
     "passed": "Bestanden?",
     "expectedOutput": "Erwartete Ausgabe",
+    "multipleChoiceAnswer": "Antwortoptionen",
     "instructions": "Anleitung",
     "showCode": "Code anzeigen",
     "sqlTables": "Tabellen",

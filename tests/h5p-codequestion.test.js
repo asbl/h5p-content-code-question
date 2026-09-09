@@ -787,6 +787,55 @@ describe('CodeQuestion', () => {
     }
   });
 
+  it('passes shared runtime options to read-only inline code rendering', () => {
+    class CustomQuestion extends CodeQuestion {
+      getCodingLanguage() {
+        return 'python';
+      }
+
+      getCodeContainerOptions() {
+        return {
+          codeMirrorCdnUrl: 'https://cdn.example/codemirror/',
+          markdownCdnUrl: 'https://cdn.example/markdown/',
+          mermaidCdnUrl: 'https://cdn.example/mermaid/',
+        };
+      }
+    }
+
+    const question = new CustomQuestion({}, 1);
+    const originalMarkdown = H5P.Markdown;
+    const markdownCalls = [];
+
+    H5P.Markdown = class MarkdownMock {
+      constructor(markdown, options) {
+        markdownCalls.push({ markdown, options });
+      }
+
+      getMarkdownDiv() {
+        return document.createElement('div');
+      }
+    };
+
+    try {
+      question.renderCodeContent(document.createElement('div'), {
+        code: 'print(1)',
+        options: {
+          showEditor: false,
+        },
+      }, 0);
+
+      expect(markdownCalls[0].markdown).toBe('```python\nprint(1)\n```');
+      expect(markdownCalls[0].options).toEqual({
+        codeMirrorCdnUrl: 'https://cdn.example/codemirror/',
+        markdownCdnUrl: 'https://cdn.example/markdown/',
+        mermaidCdnUrl: 'https://cdn.example/mermaid/',
+      });
+    }
+    finally {
+      H5P.Markdown = originalMarkdown;
+    }
+  });
+
   it('shows fallback text and resizes when markdown content rendering fails', async () => {
     const question = new CodeQuestion({}, 1);
     question.resizeActionHandler = vi.fn();
@@ -801,5 +850,212 @@ describe('CodeQuestion', () => {
 
     expect(container.querySelector('.markdown-fallback')?.textContent).toBe('Visible fallback');
     expect(question.resizeActionHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses built-in multiple choice grading without creating a code tester', () => {
+    const question = new CodeQuestion({
+      contentType: 'text_only',
+      gradingSettings: {
+        gradingMethod: 'multipleChoice',
+        multipleChoice: {
+          choices: [
+            { text: 'Wrong', correct: false },
+            { text: 'Correct', correct: true },
+          ],
+        },
+      },
+    }, 1);
+
+    expect(mocks.createTester).not.toHaveBeenCalled();
+    expect(question.isMultipleChoiceQuestion()).toBe(true);
+    expect(question.codeTester).toBeNull();
+    expect(question.hasCheckButton).toBe(true);
+    expect(question.hasRunButton).toBe(false);
+    expect(question.getMaxScore()).toBe(1);
+
+    question.selectedChoices.add('choice_1');
+
+    expect(question.getScore()).toBe(1);
+    expect(question.success()).toBe(true);
+  });
+
+  it('disables code-test grading for text-only content defensively', () => {
+    const question = new CodeQuestion({
+      contentType: 'text_only',
+      gradingSettings: {
+        gradingMethod: 'ioTestCases',
+      },
+    }, 1);
+
+    expect(question.gradingMethod).toBeNull();
+    expect(question.codeTester).toBeNull();
+    expect(question.hasCheckButton).toBe(false);
+    expect(question.hasRunButton).toBe(true);
+  });
+
+  it('requires an exact selected set for multiple-answer choices', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'multipleChoice',
+        multipleChoice: {
+          allowMultiple: true,
+          choices: [
+            { text: 'A', correct: true },
+            { text: 'B', correct: true },
+            { text: 'C', correct: false },
+          ],
+        },
+      },
+    }, 1);
+
+    question.selectedChoices.add('choice_0');
+    expect(question.getScore()).toBe(0);
+
+    question.selectedChoices.add('choice_1');
+    expect(question.getScore()).toBe(1);
+
+    question.selectedChoices.add('choice_2');
+    expect(question.getScore()).toBe(0);
+  });
+
+  it('renders multiple choice answers as markdown and restores selected choices', () => {
+    const originalMarkdown = H5P.Markdown;
+    const markdownCalls = [];
+    H5P.Markdown = class MarkdownMock {
+      constructor(markdown, options) {
+        markdownCalls.push({ markdown, options });
+        this.markdown = markdown;
+      }
+
+      getMarkdownDiv() {
+        const div = document.createElement('div');
+        div.textContent = this.markdown;
+        return div;
+      }
+    };
+
+    const question = new CodeQuestion({
+      contentType: 'text_only',
+      gradingSettings: {
+        gradingMethod: 'multipleChoice',
+        multipleChoice: {
+          choices: [
+            { text: '```python\nprint(1)\n```', correct: true },
+            { text: '```mermaid\nclassDiagram\nA <|-- B\n```', correct: false },
+          ],
+        },
+      },
+    }, 1, {
+      previousState: {
+        selectedChoices: ['choice_0'],
+      },
+    });
+    question.setContent = vi.fn();
+    question.addButton = vi.fn();
+
+    try {
+      question.registerDomElements();
+
+      const inputs = question.parentDiv.querySelectorAll('.codequestion-multiple-choice input');
+      expect(inputs).toHaveLength(2);
+      expect(inputs[0].type).toBe('radio');
+      expect(inputs[0].checked).toBe(true);
+      expect(question.getAnswerGiven()).toBe(true);
+
+      inputs[1].checked = true;
+      inputs[1].dispatchEvent(new Event('change'));
+
+      expect(question.getAnswerGiven()).toBe(true);
+      expect(question.getSelectedChoiceIds()).toEqual(['choice_1']);
+      expect(markdownCalls.map((call) => call.markdown)).toEqual([
+        '```python\nprint(1)\n```',
+        '```mermaid\nclassDiagram\nA <|-- B\n```',
+      ]);
+      expect(question.addButton).toHaveBeenCalledWith(
+        'check-answer',
+        expect.any(String),
+        expect.any(Function),
+      );
+    }
+    finally {
+      H5P.Markdown = originalMarkdown;
+    }
+  });
+
+  it('persists multiple choice state and exposes choice xAPI metadata', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'multipleChoice',
+        multipleChoice: {
+          allowMultiple: true,
+          choices: [
+            { text: 'A', correct: true },
+            { text: 'B', correct: false },
+            { text: 'C', correct: true },
+          ],
+        },
+      },
+    }, 1);
+
+    question.selectedChoices.add('choice_0');
+    question.selectedChoices.add('choice_2');
+
+    expect(question.getState()).toEqual({
+      selectedChoices: ['choice_0', 'choice_2'],
+    });
+    expect(question.buildResultStatement().response).toBe('choice_0[,]choice_2');
+    expect(question.getxAPIDefinition()).toMatchObject({
+      interactionType: 'choice',
+      correctResponsesPattern: ['choice_0[,]choice_2'],
+      choices: [
+        { id: 'choice_0' },
+        { id: 'choice_1' },
+        { id: 'choice_2' },
+      ],
+    });
+  });
+
+  it('sends multiple choice answered before completed during check', async () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'multipleChoice',
+        multipleChoice: {
+          choices: [
+            { text: 'A', correct: true },
+            { text: 'B', correct: false },
+          ],
+        },
+      },
+    }, 1);
+    const events = [];
+    question.sendAttemptedEvent = vi.fn(() => events.push('attempted'));
+    question.sendAnsweredEvent = vi.fn(() => events.push('answered'));
+    question.sendCompletedEvent = vi.fn(() => events.push('completed'));
+    question.applyScoreFeedback = vi.fn();
+    question.scheduleEvaluationFrameSync = vi.fn();
+
+    await question.checkAction();
+
+    expect(events).toEqual(['attempted', 'answered', 'completed']);
+  });
+
+  it('does not expose an empty correct response pattern for invalid multiple choice setup', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'multipleChoice',
+        multipleChoice: {
+          choices: [
+            { text: 'A', correct: false },
+            { text: 'B', correct: false },
+          ],
+        },
+      },
+    }, 1);
+
+    expect(question.getScore()).toBe(0);
+    expect(question.getxAPIDefinition()).toMatchObject({
+      interactionType: 'choice',
+      correctResponsesPattern: [],
+    });
   });
 });

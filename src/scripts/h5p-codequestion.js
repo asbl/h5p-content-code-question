@@ -75,7 +75,19 @@ export default class CodeQuestion extends H5P.Question {
       && gradingMethod !== 'please_choose'
         ? gradingMethod
         : null;
+
+    if (this.contentType === 'text_only' && this.gradingMethod !== 'multipleChoice') {
+      this.gradingMethod = null;
+    }
+
     this.testcases = params.gradingSettings.testCases || [];
+    this.multipleChoice = this.normalizeMultipleChoiceSettings(
+      params.gradingSettings?.multipleChoice || {},
+    );
+    this.selectedChoices = this.normalizeSelectedChoices(
+      extras?.previousState?.selectedChoices,
+    );
+    this.answerGiven = this.selectedChoices.size > 0;
 
     /* Legacy handling:
     solutionCode can be handled in
@@ -89,19 +101,28 @@ export default class CodeQuestion extends H5P.Question {
     this.dueDate = params.gradingSettings?.dueDateGroup?.duedate || null;
     this.enableDueDate = params.gradingSettings?.dueDateGroup?.enableDueDate === true;
 
-    this.codeTester = this.gradingMethod
+    this.codeTester = this.gradingMethod && !this.isMultipleChoiceQuestion()
       ? this.getCodeTesterFactory().create()
       : null;
 
     // If grading method is unsupported, disable grading safely.
-    if (this.gradingMethod && !this.codeTester) {
+    if (this.gradingMethod && !this.isMultipleChoiceQuestion() && !this.codeTester) {
       this.gradingMethod = null;
     }
 
+    this.maxScore = this.isMultipleChoiceQuestion() ? 1 : 2;
+
     // ---- UI flags -------------------------------------------------------
     this.hasConsole = params.editorSettings?.showConsole !== false;
-    this.hasRunButton = true;
-    this.hasCheckButton = true;
+    // "Check answer" evaluates the test cases and only makes sense once
+    // grading is configured; without it, clicking it would be a no-op.
+    // "Run" executes interactively (real input() prompts, real canvas)
+    // against whatever the editor currently contains instead of the test
+    // cases' input values, which is confusing side by side with "Check
+    // answer" once grading exists. So exactly one of the two is shown,
+    // based on whether test cases/grading are configured for this content.
+    this.hasCheckButton = Boolean(this.codeTester) || this.isMultipleChoiceQuestion();
+    this.hasRunButton = !this.codeTester && !this.isMultipleChoiceQuestion();
     this.hasStopButton = true;
     this.hasTestCaseArea = true;
     this.hasAssets = false;
@@ -118,6 +139,34 @@ export default class CodeQuestion extends H5P.Question {
 
   getCodingLanguage() {
     return 'pseudocode';
+  }
+
+  normalizeMultipleChoiceSettings(settings = {}) {
+    const rawChoices = Array.isArray(settings.choices) ? settings.choices : [];
+    const choices = rawChoices
+      .map((choice, index) => ({
+        id: `choice_${index}`,
+        text: typeof choice?.text === 'string' ? choice.text : '',
+        correct: choice?.correct === true,
+      }))
+      .filter((choice) => choice.text.trim() !== '');
+
+    return {
+      allowMultiple: settings.allowMultiple === true,
+      choices,
+    };
+  }
+
+  normalizeSelectedChoices(selectedChoices = []) {
+    return new Set(
+      (Array.isArray(selectedChoices) ? selectedChoices : [])
+        .map((choiceId) => String(choiceId || ''))
+        .filter(Boolean),
+    );
+  }
+
+  isMultipleChoiceQuestion() {
+    return this.gradingMethod === 'multipleChoice';
   }
 
   isInternalFrame() {
@@ -276,8 +325,16 @@ export default class CodeQuestion extends H5P.Question {
         min: 0,
         max: maxScore
       },
-      response: this.codeContainer?.getEditorManager?.()?.getCode() || ''
+      response: this.getResponse()
     };
+  }
+
+  getResponse() {
+    if (this.isMultipleChoiceQuestion()) {
+      return this.getSelectedChoiceIds().join('[,]');
+    }
+
+    return this.codeContainer?.getEditorManager?.()?.getCode() || '';
   }
 
   /**
@@ -421,8 +478,8 @@ export default class CodeQuestion extends H5P.Question {
       name: {},
       description: {},
       type: 'http://adlnet.gov/expapi/activities/cmi.interaction',
-      interactionType: 'other',
-      correctResponsesPattern: ['response code by student'],
+      interactionType: this.isMultipleChoiceQuestion() ? 'choice' : 'other',
+      correctResponsesPattern: this.getCorrectResponsesPattern(),
     };
 
     // Localized names
@@ -433,7 +490,26 @@ export default class CodeQuestion extends H5P.Question {
     def.description[this.getCodingLanguage()] = this.getDescription();
     def.description['en-US'] = this.getDescription();
 
+    if (this.isMultipleChoiceQuestion()) {
+      def.choices = this.multipleChoice.choices.map((choice) => ({
+        id: choice.id,
+        description: {
+          [this.getCodingLanguage()]: choice.text,
+          'en-US': choice.text,
+        },
+      }));
+    }
+
     return def;
+  }
+
+  getCorrectResponsesPattern() {
+    if (!this.isMultipleChoiceQuestion()) {
+      return ['response code by student'];
+    }
+
+    const correctChoiceIds = this.getCorrectChoiceIds();
+    return correctChoiceIds.length > 0 ? [correctChoiceIds.join('[,]')] : [];
   }
 
 
@@ -450,6 +526,13 @@ export default class CodeQuestion extends H5P.Question {
    * event after the test run.
    */
   async checkAction() {
+    if (this.isMultipleChoiceQuestion()) {
+      this.sendAttemptedEvent();
+      this.sendAnsweredEvent();
+      this.evaluate();
+      return;
+    }
+
     if (!this.codeTester) {
       return;
     }
@@ -719,6 +802,10 @@ export default class CodeQuestion extends H5P.Question {
       state.contentItemStates = contentItemStates;
     }
 
+    if (this.isMultipleChoiceQuestion() && this.selectedChoices.size > 0) {
+      state.selectedChoices = this.getSelectedChoiceIds();
+    }
+
     return Object.keys(state).length > 0 ? state : undefined;
   }
 
@@ -778,14 +865,18 @@ export default class CodeQuestion extends H5P.Question {
     const contentPartsDiv = this.renderContentParts();
 
     contentDiv.append(contentPartsDiv);
+    if (this.isMultipleChoiceQuestion()) {
+      contentDiv.append(this.renderMultipleChoice());
+    }
     this.parentDiv.append(contentDiv);
 
     if (this.isAssignment()) {
       this.createCodeContainer();
       this.renderCodeContainer(contentPartsDiv);
       this.renderAssetsIfNeeded();
-      this.renderButtonsAndTestCases();
     }
+
+    this.renderButtonsAndTestCases();
 
     this.setContent(this.parentDiv);
     this.applyQuestionRootClass();
@@ -855,7 +946,10 @@ export default class CodeQuestion extends H5P.Question {
 
   renderTextContent(container, content, _index) {
     container.classList.add('text');
-    const markdown = new H5P.Markdown(content.text ?? '');
+    const markdown = new H5P.Markdown(
+      content.text ?? '',
+      this.getMarkdownOptions(),
+    );
     this.appendResolvedMarkdown(container, markdown);
     return container;
   }
@@ -934,12 +1028,27 @@ export default class CodeQuestion extends H5P.Question {
     return true;
   }
 
+  /**
+   * Returns markdown renderer options shared with CodeContainer-based views.
+   * @param {object|null} [contentParams] Optional inline content item params.
+   * @returns {object} Markdown runtime options.
+   */
+  getMarkdownOptions(contentParams = null) {
+    const options = this.getCodeContainerOptions(contentParams) || {};
+
+    return {
+      codeMirrorCdnUrl: options.codeMirrorCdnUrl || '',
+      markdownCdnUrl: options.markdownCdnUrl || '',
+      mermaidCdnUrl: options.mermaidCdnUrl || '',
+    };
+  }
+
   renderCodeContent(container, content, index) {
     container.classList.add('code');
     if (!this.shouldShowInlineEditor(content)) {
       const md = '```' + this.getCodingLanguage() + '\n' +
         this.getDecodedCode(content.code) + '\n```';
-      const markdown = new H5P.Markdown(md);
+      const markdown = new H5P.Markdown(md, this.getMarkdownOptions(content));
       this.appendResolvedMarkdown(container, markdown);
     }
     else {
@@ -973,7 +1082,7 @@ export default class CodeQuestion extends H5P.Question {
     details.classList.add('solution-code');
     const md = '```' + this.getCodingLanguage() + '\n' +
       this.getDecodedCode(content.code) + '\n```';
-    const markdown = new H5P.Markdown(md);
+    const markdown = new H5P.Markdown(md, this.getMarkdownOptions(content));
     summary.textContent = getCodeQuestionL10nValue(this.l10n, 'solutionCode');
     this.appendResolvedMarkdown(body, markdown);
     details.append(summary, body);
@@ -1020,9 +1129,81 @@ export default class CodeQuestion extends H5P.Question {
   renderButtonsAndTestCases() {
     if (!this.gradingMethod) return;
     this.addButtons();
-    if (this.hasTestCaseArea) {
+    if (!this.isMultipleChoiceQuestion() && this.hasTestCaseArea) {
       this.parentDiv.append(this.codeTester.view.getDOM());
     }
+  }
+
+  renderMultipleChoice() {
+    const wrapper = document.createElement('fieldset');
+    wrapper.className = 'codequestion-multiple-choice';
+
+    const legend = document.createElement('legend');
+    legend.className = 'sr-only';
+    legend.textContent = getCodeQuestionL10nValue(this.l10n, 'multipleChoiceAnswer');
+    wrapper.append(legend);
+
+    this.multipleChoice.choices.forEach((choice, index) => {
+      const option = document.createElement('label');
+      option.className = 'codequestion-choice';
+
+      const input = document.createElement('input');
+      input.type = this.multipleChoice.allowMultiple ? 'checkbox' : 'radio';
+      input.name = `${this.codeQuestionUID}-multiple-choice`;
+      input.value = choice.id;
+      input.checked = this.selectedChoices.has(choice.id);
+      input.addEventListener('change', () => this.handleChoiceChange(input));
+
+      const marker = document.createElement('span');
+      marker.className = 'codequestion-choice__marker';
+      marker.textContent = String.fromCharCode(65 + index);
+
+      const body = document.createElement('span');
+      body.className = 'codequestion-choice__body';
+      const markdown = new H5P.Markdown(choice.text, this.getMarkdownOptions());
+      this.appendResolvedMarkdown(body, markdown);
+
+      option.append(input, marker, body);
+      wrapper.append(option);
+    });
+
+    return wrapper;
+  }
+
+  handleChoiceChange(input) {
+    if (!this.multipleChoice.allowMultiple) {
+      this.selectedChoices.clear();
+    }
+
+    if (input.checked) {
+      this.selectedChoices.add(input.value);
+    }
+    else {
+      this.selectedChoices.delete(input.value);
+    }
+
+    this.answerGiven = this.selectedChoices.size > 0;
+  }
+
+  getSelectedChoiceIds() {
+    return this.multipleChoice.choices
+      .map((choice) => choice.id)
+      .filter((choiceId) => this.selectedChoices.has(choiceId));
+  }
+
+  getCorrectChoiceIds() {
+    return this.multipleChoice.choices
+      .filter((choice) => choice.correct)
+      .map((choice) => choice.id);
+  }
+
+  hasCorrectChoiceSelection() {
+    const selected = this.getSelectedChoiceIds();
+    const correct = this.getCorrectChoiceIds();
+
+    return correct.length > 0
+      && selected.length === correct.length
+      && selected.every((choiceId) => correct.includes(choiceId));
   }
 
   generateAssetsArea() {
@@ -1036,6 +1217,10 @@ export default class CodeQuestion extends H5P.Question {
   }
 
   getScore() {
+    if (this.isMultipleChoiceQuestion()) {
+      return this.hasCorrectChoiceSelection() ? this.maxScore : 0;
+    }
+
     if (!this.codeTester || typeof this.codeTester.getScore !== 'function') {
       return 0;
     }
@@ -1082,6 +1267,13 @@ export default class CodeQuestion extends H5P.Question {
     this.resetStopSignal();
     this.codeTester?.reset?.();
     this.codeContainer?.reset?.();
+    this.selectedChoices.clear();
+    this.answerGiven = false;
+    this.getContainer()
+      ?.querySelectorAll?.('.codequestion-multiple-choice input')
+      ?.forEach((input) => {
+        input.checked = false;
+      });
     this.resizeActionHandler();
   }
 
