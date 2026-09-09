@@ -313,10 +313,6 @@
     overflow: auto;
 }
 
-.h5p-fullscreen .h5p-codequestion .content>.instructions {
-    display: none;
-}
-
 .h5p-content-controls .h5p-enable-fullscreen {
     display: none;
 }
@@ -824,7 +820,8 @@
     white-space: pre-wrap;
 }
 
-.h5p-codequestion .codequestion-error-card__action {
+.h5p-codequestion .codequestion-error-card__action,
+.h5p-codequestion .codequestion-task-panel__toggle {
     padding: 5px 9px;
     border: 1px solid currentColor;
     border-radius: 7px;
@@ -835,9 +832,49 @@
     font-weight: 700;
 }
 
-.h5p-codequestion .codequestion-error-card__action:focus-visible {
+.h5p-codequestion .codequestion-error-card__action:focus-visible,
+.h5p-codequestion .codequestion-task-panel__toggle:focus-visible {
     outline: 3px solid currentColor;
     outline-offset: 3px;
+}
+
+.h5p-codequestion .codequestion-task-panel {
+    display: flex;
+    flex: 0 0 min(340px, 30vw);
+    flex-direction: column;
+    min-width: 220px;
+    overflow: auto;
+    overscroll-behavior: contain;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    background: #f8fafc;
+    color: #0f172a;
+    box-shadow: 0 10px 24px rgb(15 23 42 / 12%);
+}
+
+.h5p-codequestion .codequestion-task-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #d7dde8;
+}
+
+.h5p-codequestion .codequestion-task-panel__content {
+    padding: 0 12px 12px;
+}
+
+.h5p-fullscreen .h5p-codequestion .codequestion-task-panel .instructions-container,
+.h5p-fullscreen .h5p-codequestion .codequestion-task-panel .testcases-area,
+.h5p-semi-fullscreen .h5p-codequestion .codequestion-task-panel .instructions-container,
+.h5p-semi-fullscreen .h5p-codequestion .codequestion-task-panel .testcases-area {
+    display: block;
+}
+
+.h5p-fullscreen .h5p-codequestion .codequestion-task-panel,
+.h5p-semi-fullscreen .h5p-codequestion .codequestion-task-panel {
+    align-self: stretch;
 }
 
 .h5p-codequestion.theme-dark .codequestion-run-status,
@@ -869,6 +906,18 @@
     border-color: #9f1239;
     background: #4c0519;
     color: #fecdd3;
+}
+
+.h5p-codequestion.theme-dark .codequestion-task-panel,
+.theme-dark .h5p-codequestion .codequestion-task-panel {
+    border-color: #334155;
+    background: #0f172a;
+    color: #e2e8f0;
+}
+
+.h5p-codequestion.theme-dark .codequestion-task-panel__header,
+.theme-dark .h5p-codequestion .codequestion-task-panel__header {
+    border-color: #334155;
 }
 
 .h5p-codequestion.theme-dark .due-date-meta,
@@ -1001,6 +1050,17 @@
         right: 8px;
         bottom: 8px;
         max-width: calc(100% - 16px);
+    }
+
+    .h5p-fullscreen .h5p-codequestion .codequestion-task-panel,
+    .h5p-semi-fullscreen .h5p-codequestion .codequestion-task-panel {
+        position: absolute;
+        z-index: 2;
+        right: 10px;
+        bottom: max(10px, env(safe-area-inset-bottom));
+        width: min(22rem, calc(100vw - 2rem));
+        min-width: 0;
+        max-height: min(55vh, 430px);
     }
 
     .h5p-codequestion .testcases-area {

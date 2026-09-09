@@ -657,12 +657,73 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
   }
 
   enableFullscreen() {
-
-    this.setFullscreen();
+    if (this.setFullscreen()) {
+      this.showTaskPanel();
+    }
   }
 
   disableFullscreen() {
+    this.hideTaskPanel();
     this.unsetFullscreen();
+  }
+
+  ensureTaskPanel() {
+    if (this.taskPanel) {
+      return this.taskPanel;
+    }
+
+    const panel = document.createElement('aside');
+    panel.className = 'codequestion-task-panel';
+    panel.setAttribute('aria-label', getCodeQuestionL10nValue(this.l10n, 'taskPanelLabel'));
+    const header = document.createElement('div');
+    header.className = 'codequestion-task-panel__header';
+    const title = document.createElement('strong');
+    title.textContent = getCodeQuestionL10nValue(this.l10n, 'taskPanelLabel');
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'codequestion-task-panel__toggle';
+    toggle.textContent = getCodeQuestionL10nValue(this.l10n, 'taskPanelCollapse');
+    toggle.setAttribute('aria-expanded', 'true');
+    const content = document.createElement('div');
+    content.className = 'codequestion-task-panel__content';
+    toggle.addEventListener('click', () => {
+      const collapsed = panel.classList.toggle('is-collapsed');
+      content.hidden = collapsed;
+      toggle.setAttribute('aria-expanded', String(!collapsed));
+      toggle.textContent = getCodeQuestionL10nValue(this.l10n, collapsed ? 'taskPanelExpand' : 'taskPanelCollapse');
+    });
+    header.append(title, toggle);
+    panel.append(header, content);
+    this.getContainerDiv().append(panel);
+    this.taskPanel = { panel, content };
+    return this.taskPanel;
+  }
+
+  showTaskPanel() {
+    const taskPanel = this.ensureTaskPanel();
+    const questionRoot = this.parent.closest('.h5p-codequestion');
+    const nodes = questionRoot
+      ? [...questionRoot.querySelectorAll('.instructions-container, .testcases-area')]
+      : [];
+
+    this.taskPanelRestorePoints = nodes.map((node) => ({
+      node,
+      parent: node.parentNode,
+      nextSibling: node.nextSibling,
+    }));
+    nodes.forEach((node) => taskPanel.content.append(node));
+    taskPanel.panel.hidden = nodes.length === 0;
+  }
+
+  hideTaskPanel() {
+    this.taskPanelRestorePoints?.forEach(({ node, parent, nextSibling }) => {
+      if (!parent) return;
+      parent.insertBefore(node, nextSibling);
+    });
+    this.taskPanelRestorePoints = [];
+    if (this.taskPanel) {
+      this.taskPanel.panel.hidden = true;
+    }
   }
 
   getFullscreenHost() {
@@ -742,6 +803,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
 
     this.getEditorManager().restoreDynamicHeight();
     this.getConsoleManager().restoreConsoleHeight();
+    this.hideTaskPanel();
 
     if (!skipNativeExit && typeof H5P.exitFullScreen === 'function') {
       H5P.exitFullScreen();
