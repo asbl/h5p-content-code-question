@@ -1,3 +1,11 @@
+function normalizeTestcaseInputValue(value) {
+  if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'input')) {
+    return value.input;
+  }
+
+  return value;
+}
+
 /**
  * Manages the execution of a sequence of test cases within a test session.
  * Tracks the current test case, input consumption, and produced outputs.
@@ -92,7 +100,7 @@ export default class TestSession {
       throw new Error('No more input for testcase');
     }
 
-    return testCase.inputs[this.inputIndex];
+    return normalizeTestcaseInputValue(testCase.inputs[this.inputIndex]);
   }
 
   nextInput() {

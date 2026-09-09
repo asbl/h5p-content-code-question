@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import TestSession from '../src/scripts/tester/components/session-tester.js';
 import CodeTester from '../src/scripts/tester/tester.js';
+import { IOComparator } from '../src/scripts/tester/io/comparator-io.js';
 import { IOTesterView } from '../src/scripts/tester/io/view-tester-io.js';
 
 class TestCodeTester extends CodeTester {
@@ -82,6 +83,30 @@ describe('TestSession edge cases', () => {
     expect(session.getCurrentTestCaseIndexNumber()).toBe(0);
     expect(session.outputs[0]).toEqual(['solution output']);
     expect(session.getInput()).toBe('3');
+  });
+
+  it('reads Moodle list-field input objects as testcase input values', () => {
+    const session = new TestSession([{ inputs: [{ input: '42' }], outputs: [] }]);
+
+    expect(session.getInput()).toBe('42');
+  });
+
+  it('preserves numeric Moodle list-field input objects for int(input())', () => {
+    const session = new TestSession([{ inputs: [{ input: '3' }, { input: '6' }], outputs: [] }]);
+
+    expect(session.getInput()).toBe('3');
+    session.nextInput();
+    expect(session.getInput()).toBe('6');
+  });
+});
+
+describe('IOComparator edge cases', () => {
+  it('compares Moodle list-field output objects as expected output values', () => {
+    const comparator = new IOComparator();
+
+    expect(comparator.compare(0, {
+      outputs: [{ output: '42' }],
+    }, ['42'])).toBe(true);
   });
 });
 

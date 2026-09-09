@@ -6,7 +6,10 @@ import TestCaseComparator from '../components/comparator';
  * @returns {string} Decoded text.
  */
 function decodeHtmlEntities(value) {
-  const text = String(value ?? '');
+  const normalizedValue = value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, 'output')
+    ? value.output
+    : value;
+  const text = String(normalizedValue ?? '');
 
   if (typeof document !== 'undefined' && typeof document.createElement === 'function') {
     const textarea = document.createElement('textarea');
