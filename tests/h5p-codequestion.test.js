@@ -82,6 +82,56 @@ describe('CodeQuestion', () => {
     expect(question.codeTester).toBeNull();
   });
 
+  it('shows only "Run" when no grading is configured', () => {
+    // "Check answer" would be a no-op without test cases to evaluate against.
+    const question = new CodeQuestion({}, 1);
+
+    expect(question.codeTester).toBeNull();
+    expect(question.hasRunButton).toBe(true);
+    expect(question.hasCheckButton).toBe(false);
+  });
+
+  it('shows only "Check answer" once test cases are configured', () => {
+    // "Run" executes interactively against whatever the editor currently
+    // contains instead of the test cases' input values, which is confusing
+    // next to "Check answer" once grading exists.
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'ioTestCases',
+      },
+    }, 1);
+
+    expect(question.codeTester).not.toBeNull();
+    expect(question.hasCheckButton).toBe(true);
+    expect(question.hasRunButton).toBe(false);
+  });
+
+  it('shows "Check answer" for IDE-only content with grading configured too', () => {
+    // Regression test: IDE-only content used to hide "Check answer"
+    // unconditionally, which left graded IDE-only assignments with no way
+    // to check the answer at all once "Run" was hidden for having grading.
+    const question = new CodeQuestion({
+      contentType: 'ide_only',
+      gradingSettings: {
+        gradingMethod: 'ioTestCases',
+      },
+    }, 1);
+
+    expect(question.codeTester).not.toBeNull();
+    expect(question.hasCheckButton).toBe(true);
+    expect(question.hasRunButton).toBe(false);
+  });
+
+  it('shows only "Run" for IDE-only content without grading configured', () => {
+    const question = new CodeQuestion({
+      contentType: 'ide_only',
+    }, 1);
+
+    expect(question.codeTester).toBeNull();
+    expect(question.hasCheckButton).toBe(false);
+    expect(question.hasRunButton).toBe(true);
+  });
+
   it('derives localized feedback text and applies score feedback consistently', () => {
     const question = new CodeQuestion({
       l10n: {
@@ -402,12 +452,24 @@ describe('CodeQuestion', () => {
 
     expect(questionHiddenConsole.hasConsole).toBe(false);
     expect(questionHiddenConsole.enableDueDate).toBe(true);
-    expect(questionHiddenConsole.getCodeContainerOptions()).toEqual({ hasConsole: false, enableDiagnosticLogs: false });
+    expect(questionHiddenConsole.getCodeContainerOptions()).toMatchObject({
+      hasConsole: false,
+      workspaceAutosaveEnabled: false,
+    });
 
     const questionDefaultConsole = new CodeQuestion({}, 2);
     expect(questionDefaultConsole.hasConsole).toBe(true);
     expect(questionDefaultConsole.enableDueDate).toBe(false);
-    expect(questionDefaultConsole.getCodeContainerOptions()).toEqual({ hasConsole: true, enableDiagnosticLogs: false });
+    expect(questionDefaultConsole.getCodeContainerOptions()).toMatchObject({
+      hasConsole: true,
+      workspaceAutosaveEnabled: false,
+    });
+
+    const ideQuestion = new CodeQuestion({ contentType: 'ide_only' }, 3);
+    expect(ideQuestion.getCodeContainerOptions()).toMatchObject({
+      workspaceAutosaveEnabled: true,
+      workspaceAutosaveKey: 'h5p-codequestion:3:pseudocode',
+    });
   });
 
   it('uses the CodeMirror-compatible reset path in resetTask', () => {

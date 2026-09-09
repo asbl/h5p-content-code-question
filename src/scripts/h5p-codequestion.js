@@ -9,6 +9,7 @@ import CodeTesterFactory from './tester/factory-tester';
 import TestRuntimeFactory from './runtime/factory-runtime-test';
 import { Runtime } from './runtime/runtime';
 import CodeQuestionContainer from './container/codequestion-container';
+import CodeQuestionStateService from './services/codequestion-state';
 
 /**
  * @class
@@ -134,6 +135,7 @@ export default class CodeQuestion extends H5P.Question {
     this.xAPIlastEvent = null;
 
     this.codeContainers = new Map();
+    this.stateService = new CodeQuestionStateService();
     this.boundInternalFrameResizeHandler = null;
   }
 
@@ -647,6 +649,10 @@ export default class CodeQuestion extends H5P.Question {
       hasConsole: this.hasConsole,
       enableDiagnosticLogs: this.params.advancedOptions?.enableDiagnosticLogs === true
         || this.params.behaviour?.enableDiagnosticLogs === true,
+      // A web-IDE should preserve local work between reloads. This remains
+      // browser-local and never replaces an LMS/H5P submission.
+      workspaceAutosaveEnabled: this.contentType === 'ide_only' && contentParams === null,
+      workspaceAutosaveKey: `h5p-codequestion:${this.contentId}:${this.getCodingLanguage()}`,
     };
   }
 
@@ -756,18 +762,7 @@ export default class CodeQuestion extends H5P.Question {
    * @returns {object|null} Persistable state entry or null.
    */
   getContainerState(container) {
-    const snapshot = container?.getWorkspaceSnapshot?.();
-    const defaultSnapshot = container?.getDefaultWorkspaceSnapshot?.();
-
-    if (!snapshot?.files?.length) {
-      return null;
-    }
-
-    if (defaultSnapshot && JSON.stringify(snapshot) === JSON.stringify(defaultSnapshot)) {
-      return null;
-    }
-
-    return { workspaceSnapshot: snapshot };
+    return this.stateService.getContainerState(container);
   }
 
   /**
@@ -777,9 +772,7 @@ export default class CodeQuestion extends H5P.Question {
    * @returns {void}
    */
   applyContainerState(container, state = {}) {
-    if (state?.workspaceSnapshot) {
-      container?.setWorkspaceSnapshot?.(state.workspaceSnapshot);
-    }
+    this.stateService.applyContainerState(container, state);
   }
 
   /**
@@ -789,24 +782,10 @@ export default class CodeQuestion extends H5P.Question {
    * @returns {object|undefined} State object, or undefined when there is nothing to save.
    */
   getState() {
-    const state = {};
-    const assignmentState = this.getContainerState(this.codeContainer);
-    const contentItemStates = {};
-
-    if (assignmentState) {
-      state.assignmentState = assignmentState;
-    }
-
-    this.codeContainers.forEach((container, containerId) => {
-      const containerState = this.getContainerState(container);
-      if (containerState) {
-        contentItemStates[containerId] = containerState;
-      }
-    });
-
-    if (Object.keys(contentItemStates).length > 0) {
-      state.contentItemStates = contentItemStates;
-    }
+    const state = this.stateService.getState({
+      assignmentContainer: this.codeContainer,
+      contentContainers: this.codeContainers,
+    }) || {};
 
     if (this.isMultipleChoiceQuestion() && this.selectedChoices.size > 0) {
       state.selectedChoices = this.getSelectedChoiceIds();
