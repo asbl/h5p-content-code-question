@@ -1,5 +1,38 @@
 import pixelmatch from 'pixelmatch';
 import TestCaseComparator from '../components/comparator';
+import { logCodeQuestionDiagnostic } from '../../services/codequestion-diagnostics';
+
+const DEFAULT_RENDER_SETTLE_FRAMES = 3;
+const DEFAULT_RENDER_SETTLE_DELAY_MS = 80;
+const DEBUG_PREFIX = 'Image comparator:';
+
+function describeCanvas(canvas) {
+  if (!canvas) {
+    return null;
+  }
+
+  return {
+    width: canvas.width,
+    height: canvas.height,
+    className: canvas.className,
+    id: canvas.id,
+  };
+}
+
+function waitForNextPaint() {
+  return new Promise((resolve) => {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => resolve());
+      return;
+    }
+
+    setTimeout(resolve, 0);
+  });
+}
+
+function waitForDelay(delay) {
+  return new Promise((resolve) => setTimeout(resolve, delay));
+}
 
 /**
  * Compares output and expected canvas images and optionally shows a visual diff with zoom/pan.
@@ -11,18 +44,50 @@ export class ImageTestCaseComparator extends TestCaseComparator {
    * @param {function(number): HTMLCanvasElement} getExpectedCanvas - Function to get expected canvas
    * @param {number} [canvasSize] - Size of canvas (assumes square)
    * @param {number} [maxDiff] - Maximum allowed differing pixels
+   * @param {object} [options] - Comparator timing options
    */
   constructor(
     getOutputCanvas,
     getExpectedCanvas,
     canvasSize = 400,
     maxDiff = 20,
+    options = {},
   ) {
     super();
     this.getOutputCanvas = getOutputCanvas;
     this.getExpectedCanvas = getExpectedCanvas;
     this.canvasSize = canvasSize;
     this.maxDiff = maxDiff;
+    this.renderSettleFrames = Number.isFinite(options.renderSettleFrames)
+      ? Math.max(0, options.renderSettleFrames)
+      : DEFAULT_RENDER_SETTLE_FRAMES;
+    this.renderSettleDelayMs = Number.isFinite(options.renderSettleDelayMs)
+      ? Math.max(0, options.renderSettleDelayMs)
+      : DEFAULT_RENDER_SETTLE_DELAY_MS;
+    this.options = options || {};
+  }
+
+  /**
+   * Waits until browser-side canvas drawing has had a chance to flush before
+   * the source canvas is copied into the merged comparison canvas.
+   * @returns {Promise<void>}
+   */
+  async waitForRenderSettle() {
+    const startedAt = Date.now();
+
+    for (let index = 0; index < this.renderSettleFrames; index++) {
+      await waitForNextPaint();
+    }
+
+    if (this.renderSettleDelayMs > 0) {
+      await waitForDelay(this.renderSettleDelayMs);
+    }
+
+    logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'render settle done', {
+      configuredFrames: this.renderSettleFrames,
+      configuredDelayMs: this.renderSettleDelayMs,
+      actualElapsedMs: Date.now() - startedAt,
+    });
   }
 
   /**
@@ -34,10 +99,21 @@ export class ImageTestCaseComparator extends TestCaseComparator {
     const context = canvas?.getContext?.('2d');
 
     if (!context) {
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'missing 2d context', describeCanvas(canvas));
       return null;
     }
 
-    return context.getImageData(0, 0, this.canvasSize, this.canvasSize);
+    try {
+      return context.getImageData(0, 0, this.canvasSize, this.canvasSize);
+    }
+    catch (error) {
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'failed to read canvas data', {
+        canvas: describeCanvas(canvas),
+        canvasSize: this.canvasSize,
+        error,
+      });
+      return null;
+    }
   }
 
   /**
@@ -48,6 +124,10 @@ export class ImageTestCaseComparator extends TestCaseComparator {
    */
   computeDiff(outputData, expectedData) {
     if (!outputData || !expectedData) {
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'cannot compute diff without image data', {
+        hasOutputData: !!outputData,
+        hasExpectedData: !!expectedData,
+      });
       return { diffPixels: Number.POSITIVE_INFINITY, diffCanvas: null };
     }
 
@@ -57,6 +137,9 @@ export class ImageTestCaseComparator extends TestCaseComparator {
     const diffContext = diffCanvas.getContext('2d');
 
     if (!diffContext) {
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'failed to create diff canvas context', {
+        canvasSize: this.canvasSize,
+      });
       return { diffPixels: Number.POSITIVE_INFINITY, diffCanvas: null };
     }
 
@@ -233,14 +316,44 @@ export class ImageTestCaseComparator extends TestCaseComparator {
    * @returns {Promise<boolean>} True if the number of differing pixels is below the maxDiff threshold
    */
   async compare(testCaseIndex, _testCase, _output) {
+    logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'start', {
+      testCaseIndex,
+      canvasSize: this.canvasSize,
+      maxDiff: this.maxDiff,
+      renderSettleFrames: this.renderSettleFrames,
+      renderSettleDelayMs: this.renderSettleDelayMs,
+    });
+
+    await this.waitForRenderSettle();
+
     const outputCanvas = this.getOutputCanvas(testCaseIndex);
     const expectedCanvas = this.getExpectedCanvas(testCaseIndex);
-    if (!outputCanvas || !expectedCanvas) return false;
+    logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'canvas lookup', {
+      testCaseIndex,
+      outputCanvas: describeCanvas(outputCanvas),
+      expectedCanvas: describeCanvas(expectedCanvas),
+    });
+
+    if (!outputCanvas || !expectedCanvas) {
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'abort missing canvas', {
+        testCaseIndex,
+        hasOutputCanvas: !!outputCanvas,
+        hasExpectedCanvas: !!expectedCanvas,
+      });
+      return false;
+    }
+
+    await this.waitForRenderSettle();
 
     const outputData = this.getCanvasData(outputCanvas);
     const expectedData = this.getCanvasData(expectedCanvas);
 
     if (!outputData || !expectedData) {
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'abort missing image data', {
+        testCaseIndex,
+        hasOutputData: !!outputData,
+        hasExpectedData: !!expectedData,
+      });
       return false;
     }
 
@@ -250,12 +363,21 @@ export class ImageTestCaseComparator extends TestCaseComparator {
     );
 
     if (!diffCanvas) {
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'abort missing diff canvas', {
+        testCaseIndex,
+        diffPixels,
+      });
       return false;
     }
 
     this.showDiffModal(diffCanvas, outputCanvas);
 
-    console.warn('Image comparator:', diffPixels, 'maxDiff:', this.maxDiff);
+    logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'result', {
+      testCaseIndex,
+      diffPixels,
+      maxDiff: this.maxDiff,
+      passed: diffPixels <= this.maxDiff,
+    });
     return diffPixels <= this.maxDiff;
   }
 }

@@ -18,17 +18,25 @@ function createCanvasWithContext(imageData = createImageData(2)) {
   };
 }
 
+const immediateTiming = {
+  renderSettleFrames: 0,
+  renderSettleDelayMs: 0,
+};
+
 describe('ImageTestCaseComparator', () => {
   let warnSpy;
   let originalGetContext;
+  let originalRequestAnimationFrame;
 
   beforeEach(() => {
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     originalGetContext = HTMLCanvasElement.prototype.getContext;
+    originalRequestAnimationFrame = window.requestAnimationFrame;
   });
 
   afterEach(() => {
     warnSpy.mockRestore();
+    window.requestAnimationFrame = originalRequestAnimationFrame;
 
     if (originalGetContext) {
       Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
@@ -49,6 +57,7 @@ describe('ImageTestCaseComparator', () => {
       () => createCanvasWithContext(),
       2,
       0,
+      immediateTiming,
     );
 
     expect(await comparator.compare(0)).toBe(false);
@@ -58,9 +67,28 @@ describe('ImageTestCaseComparator', () => {
       () => null,
       2,
       0,
+      immediateTiming,
     );
 
     expect(await secondComparator.compare(0)).toBe(false);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('writes image diagnostics only when enabled', async () => {
+    const comparator = new ImageTestCaseComparator(
+      () => null,
+      () => createCanvasWithContext(),
+      2,
+      0,
+      { ...immediateTiming, enableDiagnosticLogs: true },
+    );
+
+    expect(await comparator.compare(0)).toBe(false);
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Image comparator:',
+      'start',
+      expect.objectContaining({ testCaseIndex: 0 }),
+    );
   });
 
   it('returns false when a canvas exists but has no 2d context', async () => {
@@ -75,6 +103,7 @@ describe('ImageTestCaseComparator', () => {
       () => expectedCanvas,
       2,
       0,
+      immediateTiming,
     );
     const showDiffModalSpy = vi.spyOn(comparator, 'showDiffModal');
 
@@ -90,6 +119,7 @@ describe('ImageTestCaseComparator', () => {
       () => expectedCanvas,
       2,
       3,
+      immediateTiming,
     );
     const showDiffModalSpy = vi.spyOn(comparator, 'showDiffModal').mockImplementation(() => {});
 
@@ -113,11 +143,54 @@ describe('ImageTestCaseComparator', () => {
       () => createCanvasWithContext(),
       2,
       0,
+      immediateTiming,
     );
 
     expect(comparator.computeDiff(createImageData(2), createImageData(2))).toEqual({
       diffPixels: Number.POSITIVE_INFINITY,
       diffCanvas: null,
     });
+  });
+
+  it('waits for render settling before merging canvases for comparison', async () => {
+    const outputCanvas = createCanvasWithContext();
+    const expectedCanvas = createCanvasWithContext();
+    const calls = [];
+    window.requestAnimationFrame = vi.fn((callback) => {
+      calls.push('raf');
+      callback();
+      return calls.length;
+    });
+
+    const comparator = new ImageTestCaseComparator(
+      () => {
+        calls.push('output');
+        return outputCanvas;
+      },
+      () => {
+        calls.push('expected');
+        return expectedCanvas;
+      },
+      2,
+      0,
+      {
+        renderSettleFrames: 2,
+        renderSettleDelayMs: 0,
+      },
+    );
+
+    vi.spyOn(comparator, 'computeDiff')
+      .mockReturnValue({ diffPixels: 0, diffCanvas: document.createElement('canvas') });
+    vi.spyOn(comparator, 'showDiffModal').mockImplementation(() => {});
+
+    expect(await comparator.compare(0)).toBe(true);
+    expect(calls).toEqual([
+      'raf',
+      'raf',
+      'output',
+      'expected',
+      'raf',
+      'raf',
+    ]);
   });
 });
