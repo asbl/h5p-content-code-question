@@ -1,4 +1,11 @@
 import { tCodeQuestion } from '../services/codequestion-l10n';
+import { logCodeQuestionDiagnostic } from '../services/codequestion-diagnostics';
+
+const DEBUG_PREFIX = 'Solution runtime:';
+
+function normalizeInputValue(value) {
+  return value == null ? '' : String(value);
+}
 
 /**
  * Mixin that adds solution execution behavior to a Python runtime.
@@ -33,7 +40,13 @@ export const SolutionRuntimeMixin = (Base) =>
      * @returns {Promise<void>}
      */
     async run() {
+      const testCaseIndex = this.codeTester?.session?.testCaseIndex;
+      const startedAt = Date.now();
       await this.runCode(this.getCode());
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'runCode returned', {
+        testCaseIndex,
+        durationMs: Date.now() - startedAt,
+      });
       this.resizeActionHandler();
     }
 
@@ -81,12 +94,34 @@ export const SolutionRuntimeMixin = (Base) =>
      * @returns {Promise<string>} Input value for the current test case
      */
     async inputHandler() {
-      const result = Promise.resolve(this.codeTester.session.getInput());
-      Promise.resolve(this.codeTester.session.nextInput());
-      return result;
+      const session = this.codeTester.session;
+      const testCaseIndex = session.testCaseIndex;
+      const inputIndex = session.inputIndex;
+      const rawValue = session.getInput();
+      const value = normalizeInputValue(rawValue);
+
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'input', {
+        testCaseIndex,
+        inputIndex,
+        rawValue,
+        rawValueType: typeof rawValue,
+        value,
+        isEmptyString: value === '',
+      });
+
+      if (value === '') {
+        logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'empty input may break int(input())', {
+          testCaseIndex,
+          inputIndex,
+        });
+      }
+
+      Promise.resolve(session.nextInput());
+      return Promise.resolve(value);
     }
 
     async start(codeContainer) {
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'start', { testCaseIndex: this.codeTester?.session?.testCaseIndex });
       this.setup(codeContainer);
       this.init();
       await this.prepareForRun();

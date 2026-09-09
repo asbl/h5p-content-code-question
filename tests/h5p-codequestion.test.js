@@ -117,6 +117,7 @@ describe('CodeQuestion', () => {
         successText: 'Correct',
         customRuntimeLabel: 'Runtime text',
       },
+      enableDiagnosticLogs: false,
     });
   });
 
@@ -401,12 +402,12 @@ describe('CodeQuestion', () => {
 
     expect(questionHiddenConsole.hasConsole).toBe(false);
     expect(questionHiddenConsole.enableDueDate).toBe(true);
-    expect(questionHiddenConsole.getCodeContainerOptions()).toEqual({ hasConsole: false });
+    expect(questionHiddenConsole.getCodeContainerOptions()).toEqual({ hasConsole: false, enableDiagnosticLogs: false });
 
     const questionDefaultConsole = new CodeQuestion({}, 2);
     expect(questionDefaultConsole.hasConsole).toBe(true);
     expect(questionDefaultConsole.enableDueDate).toBe(false);
-    expect(questionDefaultConsole.getCodeContainerOptions()).toEqual({ hasConsole: true });
+    expect(questionDefaultConsole.getCodeContainerOptions()).toEqual({ hasConsole: true, enableDiagnosticLogs: false });
   });
 
   it('uses the CodeMirror-compatible reset path in resetTask', () => {

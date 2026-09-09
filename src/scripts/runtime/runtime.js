@@ -1,4 +1,5 @@
 import ConsoleRuntimeManager from './runtime-manager-console';
+import { logCodeQuestionDiagnostic } from '../services/codequestion-diagnostics';
 
 export class Runtime {
 
@@ -122,7 +123,7 @@ export class Runtime {
    * @param {string} error The error as string.
    */
   onError(error) {
-    console.warn('Error while executing code:\n', error);
+    logCodeQuestionDiagnostic(this.options, 'Error while executing code:\n', error);
     this._consoleManager.write(error, '!>');
     this.codeContainer?.getStateManager?.().stop?.();
 

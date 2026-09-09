@@ -639,11 +639,14 @@ export default class CodeQuestion extends H5P.Question {
 
   /**
    * Returns shared container options for the code container.
+   * @param {object|null} [contentParams] Optional inline content item params.
    * @returns {object|Array<*>} Container options.
    */
   getCodeContainerOptions(contentParams = null) { // eslint-disable-line no-unused-vars
     return {
       hasConsole: this.hasConsole,
+      enableDiagnosticLogs: this.params.advancedOptions?.enableDiagnosticLogs === true
+        || this.params.behaviour?.enableDiagnosticLogs === true,
     };
   }
 
@@ -685,7 +688,10 @@ export default class CodeQuestion extends H5P.Question {
   }
 
   getRuntimeOptions() {
-    return { l10n: this.contentL10n };
+    return {
+      l10n: this.contentL10n,
+      enableDiagnosticLogs: this.getCodeContainerOptions()?.enableDiagnosticLogs === true,
+    };
   }
 
   getManualRuntimeClass() {

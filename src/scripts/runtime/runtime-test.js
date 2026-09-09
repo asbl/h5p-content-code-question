@@ -1,3 +1,11 @@
+import { logCodeQuestionDiagnostic } from '../services/codequestion-diagnostics';
+
+const DEBUG_PREFIX = 'Test runtime:';
+
+function normalizeInputValue(value) {
+  return value == null ? '' : String(value);
+}
+
 /**
  * Mixin that adds test execution behavior to a runtime.
  *
@@ -39,10 +47,18 @@ export const TestRuntimeMixin = (Base) =>
      * @returns {Promise<void>}
      */
     async run() {
+      const testCaseIndex = this.codeTester?.session?.testCaseIndex;
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'run start', { testCaseIndex, phase: 'solution' });
+
       await this.runSolution();
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'run', { testCaseIndex, phase: 'solution done' });
+
       this.codeTester?.session?.resetCurrentTestCaseInputs?.();
       await this.prepareForRun();
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'run', { testCaseIndex, phase: 'prepared, running learner code' });
+
       await this.runCode(this.getCode());
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'run', { testCaseIndex, phase: 'learner code call returned' });
     }
 
     /**
@@ -51,15 +67,25 @@ export const TestRuntimeMixin = (Base) =>
      * @returns {Promise<void>}
      */
     async runSolution() {
-      if (!this.codeTester.runSolution) return;
+      if (!this.codeTester.runSolution) {
+        logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'runSolution skipped', { runSolution: this.codeTester.runSolution });
+        return;
+      }
 
       const testCaseIndex = this.codeTester.session.testCaseIndex;
+      const startedAt = Date.now();
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'runSolution start', { testCaseIndex, startedAt });
+
       this.codeTester.view?.setExpectedGenerationState?.(testCaseIndex, true);
 
       const solutionRuntime = this.createSolutionRuntime();
 
       try {
         await solutionRuntime.start(this.codeContainer);
+        logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'runSolution finished', {
+          testCaseIndex,
+          durationMs: Date.now() - startedAt,
+        });
       }
       finally {
         this.codeTester.view?.setExpectedGenerationState?.(testCaseIndex, false);
@@ -85,8 +111,19 @@ export const TestRuntimeMixin = (Base) =>
      * @returns {Promise<void>}
      */
     async onSuccess() {
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'onSuccess', { testCaseIndex: this.codeTester?.session?.testCaseIndex });
       await this.codeTester.evaluateTestCase();
       await this.codeTester.nextTestCase(this.codeContainer);
+    }
+
+    onError(error) {
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'onError before comparison', {
+        testCaseIndex: this.codeTester?.session?.testCaseIndex,
+        inputIndex: this.codeTester?.session?.inputIndex,
+        error,
+      });
+
+      super.onError?.(error);
     }
 
     /**
@@ -94,6 +131,7 @@ export const TestRuntimeMixin = (Base) =>
      * Clears console output, removes canvases, and resets the CodeTester.
      */
     reset() {
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'reset', { testCaseIndex: this.codeTester?.session?.testCaseIndex });
       this.codeTester?.reset();
       this._consoleManager?.clear();
     }
@@ -103,9 +141,30 @@ export const TestRuntimeMixin = (Base) =>
      * @returns {Promise<string>} Input value for the current test case
      */
     async inputHandler() {
-      const result = Promise.resolve(this.codeTester.session.getInput());
-      Promise.resolve(this.codeTester.session.nextInput());
-      return result;
+      const session = this.codeTester.session;
+      const testCaseIndex = session.testCaseIndex;
+      const inputIndex = session.inputIndex;
+      const rawValue = session.getInput();
+      const value = normalizeInputValue(rawValue);
+
+      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'input', {
+        testCaseIndex,
+        inputIndex,
+        rawValue,
+        rawValueType: typeof rawValue,
+        value,
+        isEmptyString: value === '',
+      });
+
+      if (value === '') {
+        logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'empty input may break int(input())', {
+          testCaseIndex,
+          inputIndex,
+        });
+      }
+
+      Promise.resolve(session.nextInput());
+      return Promise.resolve(value);
     }
 
     /**

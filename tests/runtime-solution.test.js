@@ -46,6 +46,25 @@ describe('SolutionRuntimeMixin', () => {
     expect(session.nextInput).toHaveBeenCalledTimes(1);
   });
 
+  it('returns numeric testcase input as a string', async () => {
+    const session = {
+      testCaseIndex: 0,
+      inputIndex: 0,
+      getInput: vi.fn(() => 42),
+      nextInput: vi.fn(),
+    };
+
+    const runtime = new SolutionRuntime(
+      vi.fn(),
+      'print(input())',
+      { session, l10n: {} },
+      {},
+    );
+
+    await expect(runtime.inputHandler()).resolves.toBe('42');
+    expect(session.nextInput).toHaveBeenCalledTimes(1);
+  });
+
   it('tracks executed solutions by session test-case index', () => {
     const runtime = new SolutionRuntime(
       vi.fn(),
@@ -117,6 +136,25 @@ describe('TestRuntimeMixin', () => {
 
     expect(solutionInputHandler).toHaveResolvedWith('3');
     expect(learnerInputHandler).toHaveResolvedWith('3');
+    expect(session.inputIndex).toBe(1);
+  });
+
+  it('returns numeric learner testcase input as a string', async () => {
+    const session = new TestSession([{ inputs: [42], outputs: [] }]);
+    const runtime = new TestRuntime(
+      vi.fn(),
+      'print(input())',
+      {
+        runSolution: false,
+        session,
+        reset: vi.fn(),
+        evaluateTestCase: vi.fn(),
+        nextTestCase: vi.fn(),
+      },
+      {},
+    );
+
+    await expect(runtime.inputHandler()).resolves.toBe('42');
     expect(session.inputIndex).toBe(1);
   });
 });
