@@ -39,7 +39,35 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
 
   async setup() {
     await super.setup();
+    this.restorePreferredTheme();
     this.ensureWorkspaceFeedback();
+  }
+
+  getThemeStorageKey() {
+    return 'h5p-codequestion:theme';
+  }
+
+  restorePreferredTheme() {
+    try {
+      const theme = window.localStorage?.getItem(this.getThemeStorageKey());
+      if (theme === 'light' || theme === 'dark') {
+        super.setTheme(theme);
+      }
+    }
+    catch (_) {
+      // Storage can be unavailable in privacy-restricted embeds.
+    }
+  }
+
+  setTheme(theme) {
+    super.setTheme(theme);
+
+    try {
+      window.localStorage?.setItem(this.getThemeStorageKey(), this.getTheme());
+    }
+    catch (_) {
+      // A theme switch must still work when persisting it is not possible.
+    }
   }
 
   ensureWorkspaceFeedback() {
