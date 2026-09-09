@@ -427,6 +427,28 @@ describe('CodeQuestionContainer load workflow', () => {
     expect(restoreConsoleHeight).toHaveBeenCalledTimes(1);
   });
 
+  it('lets the learner dismiss a stuck execution error notification', () => {
+    // Regression test: the error card shown after a failed run had no close
+    // control at all. It only disappeared on the next run/stop, so a learner
+    // reading the error while nothing else happens could never get rid of it.
+    const instance = Object.create(CodeQuestionContainer.prototype);
+    const containerDiv = document.createElement('div');
+    instance.getContainerDiv = vi.fn(() => containerDiv);
+    instance.l10n = {};
+
+    instance.setExecutionStatus('error', { error: 'line 15: boom' });
+
+    expect(instance.workspaceFeedback.root.hidden).toBe(false);
+    expect(instance.workspaceFeedback.error.hidden).toBe(false);
+    expect(instance.lastExecutionError).toEqual({ message: 'line 15: boom', line: 15 });
+
+    instance.workspaceFeedback.errorDismiss.click();
+
+    expect(instance.workspaceFeedback.root.hidden).toBe(true);
+    expect(instance.workspaceFeedback.error.hidden).toBe(true);
+    expect(instance.lastExecutionError).toBeNull();
+  });
+
   it('orders images and sounds buttons before save and load', () => {
     const instance = Object.create(CodeQuestionContainer.prototype);
 

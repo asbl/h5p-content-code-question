@@ -116,6 +116,7 @@ export class Runtime {
    * Called when runtime Promise resolves successfully.
    */
   async onSuccess() {
+    this.codeContainer?.setExecutionStatus?.('success');
   }
 
   /**
@@ -125,6 +126,7 @@ export class Runtime {
   onError(error) {
     logCodeQuestionDiagnostic(this.options, 'Error while executing code:\n', error);
     this._consoleManager.write(error, '!>');
+    this.codeContainer?.setExecutionStatus?.('error', { error });
     this.codeContainer?.getStateManager?.().stop?.();
 
     if (typeof this.codeContainer?.showCodePage === 'function') {

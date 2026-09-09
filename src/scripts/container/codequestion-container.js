@@ -39,6 +39,133 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
 
   async setup() {
     await super.setup();
+    this.ensureWorkspaceFeedback();
+  }
+
+  ensureWorkspaceFeedback() {
+    if (this.workspaceFeedback || !this.getContainerDiv?.()) {
+      return;
+    }
+
+    const feedback = document.createElement('div');
+    feedback.className = 'codequestion-workspace-feedback';
+    feedback.setAttribute('aria-live', 'polite');
+    feedback.hidden = true;
+
+    const status = document.createElement('span');
+    status.className = 'codequestion-run-status';
+    feedback.append(status);
+
+    const error = document.createElement('div');
+    error.className = 'codequestion-error-card';
+    error.hidden = true;
+
+    const errorHeader = document.createElement('div');
+    errorHeader.className = 'codequestion-error-card__header';
+
+    const errorTitle = document.createElement('strong');
+    errorTitle.textContent = getCodeQuestionL10nValue(this.l10n, 'executionErrorTitle');
+
+    const errorDismiss = document.createElement('button');
+    errorDismiss.type = 'button';
+    errorDismiss.className = 'codequestion-error-card__dismiss';
+    errorDismiss.setAttribute('aria-label', getCodeQuestionL10nValue(this.l10n, 'dismissError'));
+    errorDismiss.textContent = '×';
+    errorDismiss.addEventListener('click', () => this.dismissExecutionError());
+
+    errorHeader.append(errorTitle, errorDismiss);
+
+    const errorMessage = document.createElement('p');
+    const errorAction = document.createElement('button');
+    errorAction.type = 'button';
+    errorAction.className = 'codequestion-error-card__action';
+    errorAction.textContent = getCodeQuestionL10nValue(this.l10n, 'jumpToError');
+    errorAction.addEventListener('click', () => this.focusErrorLine());
+    error.append(errorHeader, errorMessage, errorAction);
+    feedback.append(error);
+
+    this.getContainerDiv().prepend(feedback);
+    this.workspaceFeedback = { root: feedback, status, error, errorMessage, errorAction, errorDismiss };
+  }
+
+  /**
+   * Hides the execution error notification without waiting for the next run.
+   * @returns {void}
+   */
+  dismissExecutionError() {
+    if (!this.workspaceFeedback) {
+      return;
+    }
+
+    const { root, error } = this.workspaceFeedback;
+    error.hidden = true;
+    root.hidden = true;
+    this.lastExecutionError = null;
+  }
+
+  setExecutionStatus(state, options = {}) {
+    this.ensureWorkspaceFeedback();
+    if (!this.workspaceFeedback) {
+      return;
+    }
+
+    const { root, status, error } = this.workspaceFeedback;
+    const labels = {
+      running: getCodeQuestionL10nValue(this.l10n, 'executionRunning'),
+      success: getCodeQuestionL10nValue(this.l10n, 'executionFinished'),
+      stopped: getCodeQuestionL10nValue(this.l10n, 'executionStopped'),
+    };
+
+    root.hidden = false;
+    root.dataset.state = state;
+    status.textContent = labels[state] || '';
+    if (state !== 'error') {
+      error.hidden = true;
+      this.lastExecutionError = null;
+    }
+
+    if (state === 'error') {
+      this.showExecutionError(options.error || '');
+    }
+  }
+
+  showExecutionError(error) {
+    this.ensureWorkspaceFeedback();
+    if (!this.workspaceFeedback) {
+      return;
+    }
+
+    const message = String(error || '').trim();
+    const lineMatch = message.match(/(?:line|zeile)\s*[:#]?\s*(\d+)/i);
+    this.lastExecutionError = { message, line: lineMatch ? Number(lineMatch[1]) : null };
+
+    const { root, status, error: errorCard, errorMessage, errorAction } = this.workspaceFeedback;
+    root.hidden = false;
+    root.dataset.state = 'error';
+    status.textContent = getCodeQuestionL10nValue(this.l10n, 'executionFailed');
+    errorMessage.textContent = message;
+    errorAction.hidden = !this.lastExecutionError.line;
+    errorCard.hidden = false;
+  }
+
+  focusErrorLine() {
+    const line = this.lastExecutionError?.line;
+    if (!line) {
+      return;
+    }
+
+    this.showCodePage();
+    const editor = this.getEditorManager?.().getActiveEditorInstance?.();
+    const view = editor?.editorView;
+    if (!view?.state?.doc || typeof view.dispatch !== 'function') {
+      this.getEditorManager?.().focus?.();
+      return;
+    }
+
+    const safeLine = Math.min(Math.max(1, line), view.state.doc.lines);
+    const position = view.state.doc.line(safeLine).from;
+    view.dispatch({ selection: { anchor: position }, scrollIntoView: true });
+    view.focus?.();
   }
 
   getUIRegistrations() {
@@ -436,6 +563,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
   run() {
     this._runtime?.stop();
     this._runtime = this.runtimeFactory.create();
+    this.setExecutionStatus('running');
     this.getPageManager().showPage(this._runtime.getRunPage());
     this._runtime.start(this);
   }
@@ -447,6 +575,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
   stop() {
     this._runtime?.stop();
     this.getStateManager().stop();
+    this.setExecutionStatus('stopped');
     this.showCodePage();
   }
 
