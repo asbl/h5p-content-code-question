@@ -50,6 +50,33 @@ describe('FunctionTester', () => {
     expect(tester.results.getScore()).toBe(0);
   });
 
+  it('records token-bound harness results for their originating test case', () => {
+    const tester = new FunctionTester(
+      [
+        { arguments: [{ argument: '[1]' }, { argument: '1' }], expectedResult: '0' },
+        { arguments: [{ argument: '[2]' }, { argument: '2' }], expectedResult: '0' },
+      ],
+      'functionTests',
+      vi.fn(),
+      vi.fn(),
+      {},
+      null,
+      false,
+      null,
+      'find_index',
+    );
+
+    tester.getTestCode('def find_index(values, target): return 0');
+    const firstToken = tester.resultToken;
+    tester.session.nextTestCase();
+    tester.getTestCode('def find_index(values, target): return 0');
+
+    tester.addOutput(`__H5P_FUNCTION_TEST_RESULT__:${firstToken}:passed:0`);
+
+    expect(tester.session.outputs).toEqual([[{ status: 'passed', detail: '0' }], []]);
+    expect(tester.results.results).toEqual([1, 0]);
+  });
+
   it('reports invalid function-test configuration instead of silently comparing it', () => {
     const tester = new FunctionTester(
       [{ arguments: [{ argument: '[1,]' }], expectedResult: 'None' }],

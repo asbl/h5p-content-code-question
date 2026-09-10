@@ -38,6 +38,7 @@ export default class FunctionTester extends CodeTester {
     this.functionName = String(functionName || '');
     this.view.functionName = this.functionName;
     this.resultToken = null;
+    this.resultTokens = new Map();
   }
 
   comparatorFactory() {
@@ -58,6 +59,12 @@ export default class FunctionTester extends CodeTester {
     );
   }
 
+  reset() {
+    super.reset();
+    this.resultToken = null;
+    this.resultTokens.clear();
+  }
+
   /**
    * Stores only the dedicated harness result. Learner print statements must
    * not influence function-test grading.
@@ -65,16 +72,28 @@ export default class FunctionTester extends CodeTester {
    */
   addOutput(outputText) {
     const text = String(outputText ?? '').trim();
-    const marker = `${RESULT_PREFIX}${this.resultToken}:`;
-    if (!this.resultToken || !text.startsWith(marker)) return;
+    if (!text.startsWith(RESULT_PREFIX)) return;
 
-    const [status, ...detailParts] = text.slice(marker.length).split(':');
+    const [token, status, ...detailParts] = text.slice(RESULT_PREFIX.length).split(':');
+    const index = this.resultTokens.get(token);
+    if (!token || (index === undefined && token !== this.resultToken)) return;
+
     if (!['passed', 'failed', 'error', 'configuration'].includes(status)) return;
 
-    this.session.setCurrentTestCaseOutput({
+    const testCaseIndex = index ?? this.session.testCaseIndex;
+    const output = [{
       status,
       detail: detailParts.join(':').slice(0, 500),
-    });
+    }];
+    this.session.outputs[testCaseIndex] = output;
+
+    const testPassed = status === 'passed';
+    const constraintsPassed = !this.hasAlgorithmConstraints()
+      || this.algorithmConstraintResult?.passed === true;
+    const passed = testPassed && constraintsPassed;
+
+    this.results.setResult(testCaseIndex, passed);
+    this.view.update(testCaseIndex, output, passed);
   }
 
   getTestCaseValues(testCase) {
@@ -111,6 +130,7 @@ export default class FunctionTester extends CodeTester {
   getTestCode(learnerCode) {
     const testCase = this.session.getCurrentTestCase() || {};
     this.resultToken = getRandomToken();
+    this.resultTokens.set(this.resultToken, this.session.getCurrentTestCaseIndexNumber());
     const functionName = JSON.stringify(String(this.functionName || ''));
     const marker = JSON.stringify(`${RESULT_PREFIX}${this.resultToken}:`);
 
