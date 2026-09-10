@@ -31,6 +31,20 @@ function decodeHtmlEntities(value) {
  * matches the expected output.
  */
 export class IOComparator extends TestCaseComparator {
+  constructor(...args) {
+    super(...args);
+
+    /**
+     * Structured reason for the most recent failed comparison, or null when
+     * the last comparison passed (or none has run yet). Consumed by the
+     * tester/view layer to show a concrete, actionable failure message
+     * instead of a bare ✗, so a student can see *why* a test failed instead
+     * of having to guess (e.g. an invisible stray blank print() line).
+     * @type {object|null}
+     */
+    this.lastMismatchReason = null;
+  }
+
   /**
    * Runs the test case comparison.
    * @param {number} testCaseIndex - Current test case index.
@@ -39,10 +53,13 @@ export class IOComparator extends TestCaseComparator {
    * @returns {boolean} True if the test passes (all expected outputs match actual outputs).
    */
   compare(testCaseIndex, testCase, output) {
+    this.lastMismatchReason = null;
+
     const expectedOutput = testCase.outputs ?? [];
+    const actualOutput = Array.isArray(output) ? output : [];
 
     // No expected output and no actual output → pass
-    if (!expectedOutput.length && !output.length) {
+    if (!expectedOutput.length && !actualOutput.length) {
       return true;
     }
 
@@ -51,14 +68,45 @@ export class IOComparator extends TestCaseComparator {
       return false;
     }
 
-    // More output than expected → fail
-    if (output.length > expectedOutput.length) {
+    // More output than expected → fail. This commonly happens when the
+    // student's code prints one extra (sometimes blank/whitespace-only and
+    // therefore easy to miss visually) line beyond what the test case
+    // expects, so the concrete counts are recorded for the UI.
+    if (actualOutput.length > expectedOutput.length) {
+      this.lastMismatchReason = {
+        type: 'lineCountMismatch',
+        expectedCount: expectedOutput.length,
+        actualCount: actualOutput.length,
+      };
       return false;
     }
 
-    // Compare each expected output line with actual output line
-    return expectedOutput.every((value, index) => (
-      decodeHtmlEntities(value) === decodeHtmlEntities(output[index])
+    // Compare each expected output line with actual output line, recording
+    // the first line that differs (including a missing/undefined actual
+    // line, i.e. fewer output lines than expected).
+    const mismatchIndex = expectedOutput.findIndex((value, index) => (
+      decodeHtmlEntities(value) !== decodeHtmlEntities(actualOutput[index])
     ));
+
+    if (mismatchIndex === -1) {
+      return true;
+    }
+
+    this.lastMismatchReason = {
+      type: 'lineContentMismatch',
+      line: mismatchIndex + 1,
+      expectedValue: decodeHtmlEntities(expectedOutput[mismatchIndex]),
+      actualValue: decodeHtmlEntities(actualOutput[mismatchIndex]),
+    };
+    return false;
+  }
+
+  /**
+   * Returns structured details about why the last compare() call failed.
+   * @returns {object|null} Mismatch details, or null if the last comparison
+   *   passed or compare() has not run yet.
+   */
+  getLastMismatchReason() {
+    return this.lastMismatchReason;
   }
 }

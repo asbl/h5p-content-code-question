@@ -67,6 +67,8 @@
     "functionTesterConstraintDetail": "Constraint: {violations}",
     "algorithmTrace": "Algorithm trace",
     "algorithmTraceStep": "Step {step} of {total}: {type}",
-    "algorithmTraceIndices": "Indices: {indices}"
+    "algorithmTraceIndices": "Indices: {indices}",
+    "outputLineCountMismatch": "Your program printed {actual} line(s) of output, but {expected} were expected.",
+    "outputLineContentMismatch": "Line {line} differs: expected \"{expected}\", got \"{actual}\"."
   }
 }

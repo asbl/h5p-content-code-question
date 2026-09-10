@@ -231,7 +231,13 @@ describe('CodeQuestion', () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
-  it('clears prior run output before check-answer evaluation starts', async () => {
+  it('clears a stale execution-error banner before check-answer evaluation starts', async () => {
+    // Regression test: checkAction() used to call the non-existent
+    // codeContainer.clearRunOutput(), which silently did nothing (optional
+    // chaining on an undefined method). A stale "Program could not be run"
+    // banner from an earlier manual run therefore kept showing even after a
+    // fully correct submission passed the automated tests. checkAction()
+    // must instead clear it via the real dismissExecutionError() API.
     const question = new CodeQuestion({
       l10n: {
         checkAnswer: 'Check Answer',
@@ -245,7 +251,7 @@ describe('CodeQuestion', () => {
       getScore: vi.fn(() => 1),
     };
     question.codeContainer = {
-      clearRunOutput: vi.fn(),
+      dismissExecutionError: vi.fn(),
     };
     question.getContainer = vi.fn(() => {
       const container = document.createElement('div');
@@ -263,7 +269,7 @@ describe('CodeQuestion', () => {
 
     await question.checkAction();
 
-    expect(question.codeContainer.clearRunOutput).toHaveBeenCalledTimes(1);
+    expect(question.codeContainer.dismissExecutionError).toHaveBeenCalledTimes(1);
   });
 
   it('syncs iframe height after evaluation in framed mode', async () => {

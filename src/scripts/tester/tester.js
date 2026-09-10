@@ -96,6 +96,9 @@ export default class CodeTester {
     });
 
     const testPassed = await this.comparator.compare(indexNumber, testCase, output);
+    const mismatchReason = typeof this.comparator.getLastMismatchReason === 'function'
+      ? this.comparator.getLastMismatchReason()
+      : null;
     const constraintsPassed = !this.hasAlgorithmConstraints()
       || this.algorithmConstraintResult?.passed === true;
     const passed = testPassed && constraintsPassed;
@@ -104,10 +107,11 @@ export default class CodeTester {
       testPassed,
       constraintsPassed,
       passed,
+      mismatchReason,
     });
 
     this.results.setResult(indexNumber, passed);
-    this.view.update(indexNumber, output, passed);
+    this.view.update(indexNumber, output, passed, testPassed ? null : mismatchReason);
   }
 
   evaluateCompletedTest() {

@@ -540,7 +540,12 @@ export default class CodeQuestion extends H5P.Question {
     }
 
     this.resetStopSignal();
-    this.codeContainer?.clearRunOutput?.();
+    // Clear any stale execution-error banner (e.g. "Program could not be
+    // run.") left over from an earlier manual run/attempt. Without this,
+    // an old crash banner from a previous, since-fixed attempt keeps
+    // showing during and after a fresh, successful automated test run,
+    // making a correct submission look like it crashed.
+    this.codeContainer?.dismissExecutionError?.();
     this.setCheckAnswerBusyState(true);
 
     try {

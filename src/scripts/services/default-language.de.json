@@ -67,6 +67,8 @@
     "functionTesterConstraintDetail": "Vorgabe: {violations}",
     "algorithmTrace": "Algorithmusablauf",
     "algorithmTraceStep": "Schritt {step} von {total}: {type}",
-    "algorithmTraceIndices": "Indizes: {indices}"
+    "algorithmTraceIndices": "Indizes: {indices}",
+    "outputLineCountMismatch": "Dein Programm hat {actual} Ausgabezeile(n) erzeugt, erwartet wurden {expected}.",
+    "outputLineContentMismatch": "Zeile {line} weicht ab: erwartet \"{expected}\", erhalten \"{actual}\"."
   }
 }
