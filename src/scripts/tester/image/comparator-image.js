@@ -316,6 +316,7 @@ export class ImageTestCaseComparator extends TestCaseComparator {
    * @returns {Promise<boolean>} True if the number of differing pixels is below the maxDiff threshold
    */
   async compare(testCaseIndex, _testCase, _output) {
+    this.lastMismatchReason = null;
     logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'start', {
       testCaseIndex,
       canvasSize: this.canvasSize,
@@ -335,6 +336,7 @@ export class ImageTestCaseComparator extends TestCaseComparator {
     });
 
     if (!outputCanvas || !expectedCanvas) {
+      this.lastMismatchReason = { type: 'missingCanvas' };
       logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'abort missing canvas', {
         testCaseIndex,
         hasOutputCanvas: !!outputCanvas,
@@ -349,6 +351,7 @@ export class ImageTestCaseComparator extends TestCaseComparator {
     const expectedData = this.getCanvasData(expectedCanvas);
 
     if (!outputData || !expectedData) {
+      this.lastMismatchReason = { type: 'missingImageData' };
       logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'abort missing image data', {
         testCaseIndex,
         hasOutputData: !!outputData,
@@ -363,6 +366,7 @@ export class ImageTestCaseComparator extends TestCaseComparator {
     );
 
     if (!diffCanvas) {
+      this.lastMismatchReason = { type: 'missingImageData' };
       logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'abort missing diff canvas', {
         testCaseIndex,
         diffPixels,
@@ -372,12 +376,25 @@ export class ImageTestCaseComparator extends TestCaseComparator {
 
     this.showDiffModal(diffCanvas, outputCanvas);
 
+    const passed = diffPixels <= this.maxDiff;
+    if (!passed) {
+      this.lastMismatchReason = {
+        type: 'imageDifference',
+        diffPixels,
+        maxDiff: this.maxDiff,
+      };
+    }
+
     logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'result', {
       testCaseIndex,
       diffPixels,
       maxDiff: this.maxDiff,
-      passed: diffPixels <= this.maxDiff,
+      passed,
     });
-    return diffPixels <= this.maxDiff;
+    return passed;
+  }
+
+  getLastMismatchReason() {
+    return this.lastMismatchReason;
   }
 }

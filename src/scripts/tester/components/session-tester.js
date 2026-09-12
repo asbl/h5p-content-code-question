@@ -6,6 +6,15 @@ function normalizeTestcaseInputValue(value) {
   return value;
 }
 
+function normalizeOutputLines(value) {
+  return String(value ?? '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\n$/, '')
+    .split('\n')
+    .map((line) => line.trim());
+}
+
 /**
  * Manages the execution of a sequence of test cases within a test session.
  * Tracks the current test case, input consumption, and produced outputs.
@@ -114,7 +123,7 @@ export default class TestSession {
    * @returns {void}
    */
   addOutput(text) {
-    this.outputs[this.testCaseIndex].push(String(text));
+    this.outputs[this.testCaseIndex].push(...normalizeOutputLines(text));
   }
 
   /**

@@ -1,5 +1,3 @@
-import { logCodeQuestionDiagnostic } from '../services/codequestion-diagnostics';
-
 const DEBUG_PREFIX = 'Test runtime:';
 
 function normalizeInputValue(value) {
@@ -48,17 +46,17 @@ export const TestRuntimeMixin = (Base) =>
      */
     async run() {
       const testCaseIndex = this.codeTester?.session?.testCaseIndex;
-      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'run start', { testCaseIndex, phase: 'solution' });
+      console.warn(DEBUG_PREFIX, 'run start', { testCaseIndex, phase: 'solution' });
 
       await this.runSolution();
-      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'run', { testCaseIndex, phase: 'solution done' });
+      console.warn(DEBUG_PREFIX, 'run', { testCaseIndex, phase: 'solution done' });
 
       this.codeTester?.session?.resetCurrentTestCaseInputs?.();
       await this.prepareForRun();
-      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'run', { testCaseIndex, phase: 'prepared, running learner code' });
+      console.warn(DEBUG_PREFIX, 'run', { testCaseIndex, phase: 'prepared, running learner code' });
 
       await this.runCode(this.getCode());
-      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'run', { testCaseIndex, phase: 'learner code call returned' });
+      console.warn(DEBUG_PREFIX, 'run', { testCaseIndex, phase: 'learner code call returned' });
     }
 
     /**
@@ -68,13 +66,13 @@ export const TestRuntimeMixin = (Base) =>
      */
     async runSolution() {
       if (!this.codeTester.runSolution) {
-        logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'runSolution skipped', { runSolution: this.codeTester.runSolution });
+        console.warn(DEBUG_PREFIX, 'runSolution skipped', { runSolution: this.codeTester.runSolution });
         return;
       }
 
       const testCaseIndex = this.codeTester.session.testCaseIndex;
       const startedAt = Date.now();
-      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'runSolution start', { testCaseIndex, startedAt });
+      console.warn(DEBUG_PREFIX, 'runSolution start', { testCaseIndex, startedAt });
 
       this.codeTester.view?.setExpectedGenerationState?.(testCaseIndex, true);
 
@@ -82,7 +80,7 @@ export const TestRuntimeMixin = (Base) =>
 
       try {
         await solutionRuntime.start(this.codeContainer);
-        logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'runSolution finished', {
+        console.warn(DEBUG_PREFIX, 'runSolution finished', {
           testCaseIndex,
           durationMs: Date.now() - startedAt,
         });
@@ -111,13 +109,13 @@ export const TestRuntimeMixin = (Base) =>
      * @returns {Promise<void>}
      */
     async onSuccess() {
-      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'onSuccess', { testCaseIndex: this.codeTester?.session?.testCaseIndex });
+      console.warn(DEBUG_PREFIX, 'onSuccess', { testCaseIndex: this.codeTester?.session?.testCaseIndex });
       await this.codeTester.evaluateTestCase();
       await this.codeTester.nextTestCase(this.codeContainer);
     }
 
     onError(error) {
-      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'onError before comparison', {
+      console.warn(DEBUG_PREFIX, 'onError before comparison', {
         testCaseIndex: this.codeTester?.session?.testCaseIndex,
         inputIndex: this.codeTester?.session?.inputIndex,
         error,
@@ -131,7 +129,7 @@ export const TestRuntimeMixin = (Base) =>
      * Clears console output, removes canvases, and resets the CodeTester.
      */
     reset() {
-      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'reset', { testCaseIndex: this.codeTester?.session?.testCaseIndex });
+      console.warn(DEBUG_PREFIX, 'reset', { testCaseIndex: this.codeTester?.session?.testCaseIndex });
       this.codeTester?.reset();
       this._consoleManager?.clear();
     }
@@ -147,7 +145,7 @@ export const TestRuntimeMixin = (Base) =>
       const rawValue = session.getInput();
       const value = normalizeInputValue(rawValue);
 
-      logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'input', {
+      console.warn(DEBUG_PREFIX, 'input', {
         testCaseIndex,
         inputIndex,
         rawValue,
@@ -157,7 +155,7 @@ export const TestRuntimeMixin = (Base) =>
       });
 
       if (value === '') {
-        logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'empty input may break int(input())', {
+        console.warn(DEBUG_PREFIX, 'empty input may break int(input())', {
           testCaseIndex,
           inputIndex,
         });

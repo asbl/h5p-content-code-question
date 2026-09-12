@@ -26,6 +26,19 @@ function decodeHtmlEntities(value) {
     .replace(/&amp;/g, '&');
 }
 
+function normalizeOutputLines(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values.flatMap((value) => decodeHtmlEntities(value)
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\n$/, '')
+    .split('\n')
+    .map((line) => line.trim()));
+}
+
 /**
  * IOComparator is responsible for checking if the output of a test case
  * matches the expected output.
@@ -55,8 +68,8 @@ export class IOComparator extends TestCaseComparator {
   compare(testCaseIndex, testCase, output) {
     this.lastMismatchReason = null;
 
-    const expectedOutput = testCase.outputs ?? [];
-    const actualOutput = Array.isArray(output) ? output : [];
+    const expectedOutput = normalizeOutputLines(testCase.outputs);
+    const actualOutput = normalizeOutputLines(output);
 
     // No expected output and no actual output → pass
     if (!expectedOutput.length && !actualOutput.length) {
@@ -85,7 +98,7 @@ export class IOComparator extends TestCaseComparator {
     // the first line that differs (including a missing/undefined actual
     // line, i.e. fewer output lines than expected).
     const mismatchIndex = expectedOutput.findIndex((value, index) => (
-      decodeHtmlEntities(value) !== decodeHtmlEntities(actualOutput[index])
+      value !== actualOutput[index]
     ));
 
     if (mismatchIndex === -1) {
@@ -95,8 +108,8 @@ export class IOComparator extends TestCaseComparator {
     this.lastMismatchReason = {
       type: 'lineContentMismatch',
       line: mismatchIndex + 1,
-      expectedValue: decodeHtmlEntities(expectedOutput[mismatchIndex]),
-      actualValue: decodeHtmlEntities(actualOutput[mismatchIndex]),
+      expectedValue: expectedOutput[mismatchIndex],
+      actualValue: actualOutput[mismatchIndex],
     };
     return false;
   }

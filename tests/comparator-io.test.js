@@ -27,6 +27,42 @@ describe('IOComparator', () => {
     expect(passed).toBe(true);
   });
 
+  it('matches multiline stdout chunks against separate expected output rows', () => {
+    const comparator = new IOComparator();
+
+    const passed = comparator.compare(
+      0,
+      { outputs: ['Robotik', '2'] },
+      ['Robotik\n2\n'],
+    );
+
+    expect(passed).toBe(true);
+  });
+
+  it('matches author-entered multiline expected output against separate runtime rows', () => {
+    const comparator = new IOComparator();
+
+    const passed = comparator.compare(
+      0,
+      { outputs: ['Robotik\r\n2'] },
+      ['Robotik', '2'],
+    );
+
+    expect(passed).toBe(true);
+  });
+
+  it('ignores line-ending and edge-whitespace differences around visible lines', () => {
+    const comparator = new IOComparator();
+
+    const passed = comparator.compare(
+      0,
+      { outputs: [' Robotik \r\n 2 '] },
+      ['Robotik\n2\n'],
+    );
+
+    expect(passed).toBe(true);
+  });
+
   it('reports a line-count mismatch reason when there is more output than expected', () => {
     // Regression test: a stray/blank extra print() line used to fail the
     // comparison via a bare length check with zero diagnostic information,

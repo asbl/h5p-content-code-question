@@ -5,6 +5,30 @@ import { logCodeQuestionDiagnostic } from '../services/codequestion-diagnostics'
 
 const DEBUG_PREFIX = 'Code tester:';
 
+function hasTextValue(value) {
+  return String(value ?? '').trim() !== '';
+}
+
+function hasNamedEntries(values, keys) {
+  return Array.isArray(values) && values.some((entry) => {
+    if (entry == null) return false;
+    if (typeof entry !== 'object') return hasTextValue(entry);
+    return keys.some((key) => hasTextValue(entry[key]));
+  });
+}
+
+function hasListEntries(values, keys = ['structure', 'name']) {
+  if (Array.isArray(values)) {
+    return values.some((entry) => {
+      if (entry == null) return false;
+      if (typeof entry !== 'object') return hasTextValue(entry);
+      return keys.some((key) => hasTextValue(entry[key]));
+    });
+  }
+
+  return hasTextValue(values);
+}
+
 export default class CodeTester {
   constructor(
     testcases,
@@ -102,16 +126,18 @@ export default class CodeTester {
     const constraintsPassed = !this.hasAlgorithmConstraints()
       || this.algorithmConstraintResult?.passed === true;
     const passed = testPassed && constraintsPassed;
+    const constraintReason = !constraintsPassed ? this.getAlgorithmConstraintMismatchReason() : null;
     logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'test case result', {
       indexNumber,
       testPassed,
       constraintsPassed,
       passed,
       mismatchReason,
+      constraintReason,
     });
 
     this.results.setResult(indexNumber, passed);
-    this.view.update(indexNumber, output, passed, testPassed ? null : mismatchReason);
+    this.view.update(indexNumber, output, passed, testPassed ? constraintReason : mismatchReason);
   }
 
   evaluateCompletedTest() {
@@ -147,6 +173,10 @@ export default class CodeTester {
   }
 
   hasAlgorithmConstraints() {
+    if (this.gradingMethod !== 'functionTests') {
+      return false;
+    }
+
     const constraints = this.algorithmConstraints;
     return constraints.requireRecursion === true
       || constraints.requireBaseCase === true
@@ -159,15 +189,16 @@ export default class CodeTester {
       || constraints.requireConditional === true
       || constraints.requireReturn === true
       || constraints.forbidTopLevelAssignments === true
-      || String(constraints.forbiddenCalls || '').trim() !== ''
-      || (Array.isArray(constraints.requiredDataStructures) && constraints.requiredDataStructures.length > 0)
-      || (Array.isArray(constraints.forbiddenDataStructures) && constraints.forbiddenDataStructures.length > 0)
-      || String(constraints.requiredDataStructures || '').trim() !== ''
-      || String(constraints.forbiddenDataStructures || '').trim() !== ''
-      || String(constraints.requiredClassNames || '').trim() !== ''
-      || String(constraints.forbiddenClassNames || '').trim() !== ''
-      || String(constraints.requiredMethodNames || '').trim() !== ''
-      || String(constraints.requiredInstanceAttributes || '').trim() !== ''
+      || hasTextValue(constraints.forbiddenCalls)
+      || hasListEntries(constraints.requiredDataStructures)
+      || hasListEntries(constraints.forbiddenDataStructures)
+      || hasTextValue(constraints.requiredClassNames)
+      || hasTextValue(constraints.forbiddenClassNames)
+      || hasTextValue(constraints.requiredMethodNames)
+      || hasTextValue(constraints.requiredInstanceAttributes)
+      || hasNamedEntries(constraints.requiredClasses, ['className', 'name'])
+      || hasNamedEntries(constraints.requiredMethods, ['methodName', 'name'])
+      || hasNamedEntries(constraints.requiredAttributes, ['attributeName', 'name'])
       || constraints.requireConstructor === true
       || constraints.requireObjectInstantiation === true
       || constraints.requireInheritance === true
@@ -177,6 +208,17 @@ export default class CodeTester {
   setAlgorithmConstraintResult(result) {
     this.algorithmConstraintResult = result;
     this.view?.setAlgorithmConstraintResult?.(result);
+  }
+
+  getAlgorithmConstraintMismatchReason() {
+    return {
+      type: 'algorithmConstraintMismatch',
+      violations: Array.isArray(this.algorithmConstraintResult?.violations)
+        ? this.algorithmConstraintResult.violations
+        : [],
+      constraints: this.algorithmConstraints || {},
+      missingResult: !this.algorithmConstraintResult,
+    };
   }
 
   hasAlgorithmTrace() {

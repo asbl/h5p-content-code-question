@@ -91,9 +91,12 @@ export default class FunctionTester extends CodeTester {
     const constraintsPassed = !this.hasAlgorithmConstraints()
       || this.algorithmConstraintResult?.passed === true;
     const passed = testPassed && constraintsPassed;
+    const reason = !testPassed
+      ? { type: 'functionResultMismatch', status, detail: output[0].detail }
+      : (!constraintsPassed ? this.getAlgorithmConstraintMismatchReason() : null);
 
     this.results.setResult(testCaseIndex, passed);
-    this.view.update(testCaseIndex, output, passed);
+    this.view.update(testCaseIndex, output, passed, reason);
   }
 
   getTestCaseValues(testCase) {

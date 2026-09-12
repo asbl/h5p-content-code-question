@@ -1,6 +1,6 @@
 import TestCaseView from '../components/view-tester';
 import DateHandler from '@scripts/tester/components/date-handler';
-import { tCodeQuestion } from '../../services/codequestion-l10n';
+import { describeFailureReason, setPassedCellStatus } from '../components/failure-reason';
 
 /**
  * Renders a list of values as text with visual line breaks.
@@ -44,69 +44,12 @@ export class IOTesterView extends TestCaseView {
     this.setPassedCellStatus(row.querySelector('.passed'), passed, mismatchReason);
   }
 
-  /**
-   * Turns a structured comparator mismatch reason into a localized,
-   * human-readable sentence.
-   * @param {object|null} mismatchReason - Reason from IOComparator.
-   * @returns {string} Localized description, or '' if there is none.
-   */
   describeMismatchReason(mismatchReason) {
-    if (!mismatchReason) {
-      return '';
-    }
-
-    if (mismatchReason.type === 'lineCountMismatch') {
-      return tCodeQuestion(this.l10n, 'outputLineCountMismatch', {
-        actual: mismatchReason.actualCount,
-        expected: mismatchReason.expectedCount,
-      });
-    }
-
-    if (mismatchReason.type === 'lineContentMismatch') {
-      return tCodeQuestion(this.l10n, 'outputLineContentMismatch', {
-        line: mismatchReason.line,
-        expected: mismatchReason.expectedValue,
-        actual: mismatchReason.actualValue,
-      });
-    }
-
-    return '';
+    return describeFailureReason(this.l10n, mismatchReason);
   }
 
   setPassedCellStatus(cell, passed, mismatchReason = null) {
-    if (!cell) return;
-
-    const label = passed
-      ? (this.l10n.testPassed || this.l10n.successText || 'Test passed')
-      : (this.l10n.testFailed || this.l10n.failedText || 'Test failed');
-
-    let reasonText = '';
-    try {
-      reasonText = passed ? '' : this.describeMismatchReason(mismatchReason);
-    }
-    catch {
-      // Missing translation must never break rendering of the pass/fail mark.
-      reasonText = '';
-    }
-
-    cell.replaceChildren();
-
-    const mark = document.createElement('span');
-    mark.className = 'testcase-passed-mark';
-    mark.textContent = passed ? '✓' : '✗';
-    cell.appendChild(mark);
-
-    const fullLabel = reasonText ? `${label}: ${reasonText}` : label;
-
-    if (reasonText) {
-      const reasonEl = document.createElement('span');
-      reasonEl.className = 'testcase-mismatch-reason';
-      reasonEl.textContent = reasonText;
-      cell.appendChild(reasonEl);
-    }
-
-    cell.setAttribute('aria-label', fullLabel);
-    cell.title = fullLabel;
+    setPassedCellStatus(cell, this.l10n, passed, mismatchReason);
   }
 
   getDOM() {

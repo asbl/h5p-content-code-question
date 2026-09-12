@@ -98,6 +98,58 @@ describe('CodeTester core edge cases', () => {
 
     expect(tester.hasAlgorithmConstraints()).toBe(true);
   });
+
+  it('ignores stale configured constraints for IO test cases', async () => {
+    const tester = new TestCodeTester(
+      [{ inputs: [], outputs: [] }], 'ioTestCases', vi.fn(), vi.fn(), {}, null, false,
+      null, null, {
+        requiredClassNames: 'Person, Team',
+        requiredMethodNames: 'Team.anzahl',
+        requiredInstanceAttributes: 'Team.mitglieder',
+        requireConstructor: true,
+        requireObjectInstantiation: true,
+      },
+    );
+
+    expect(tester.hasAlgorithmConstraints()).toBe(false);
+
+    await tester.evaluateTestCase();
+
+    expect(tester.results.getScore()).toBe(1);
+  });
+
+  it('treats empty constraint editor fields as inactive', () => {
+    const tester = new TestCodeTester(
+      [{ inputs: [] }], 'functionTests', vi.fn(), vi.fn(), {}, null, false,
+      null, null, {
+        requireRecursion: false,
+        requireBaseCase: false,
+        maxRecursiveCalls: 0,
+        requiredLoop: 'none',
+        maxLoopCount: '0',
+        maxLoopNesting: '0',
+        requireConditional: false,
+        requireReturn: false,
+        forbidTopLevelAssignments: false,
+        forbiddenCalls: '   ',
+        requiredDataStructures: [],
+        forbiddenDataStructures: [{ structure: '' }],
+        requiredClassNames: '',
+        forbiddenClassNames: ' ',
+        requiredMethodNames: '',
+        requiredInstanceAttributes: '',
+        requiredClasses: [{ className: '' }],
+        requiredMethods: [{ className: 'Team', methodName: '', parameters: 'name' }],
+        requiredAttributes: [{ className: 'Team', attributeName: '' }],
+        requireConstructor: false,
+        requireObjectInstantiation: false,
+        requireInheritance: false,
+        forbidInheritance: false,
+      },
+    );
+
+    expect(tester.hasAlgorithmConstraints()).toBe(false);
+  });
 });
 
 describe('TestSession edge cases', () => {
@@ -151,6 +203,14 @@ describe('TestSession edge cases', () => {
 
     expect(session.outputs).toEqual([[{ status: 'passed', detail: '42' }]]);
   });
+
+  it('stores multiline output chunks as separate trimmed output lines', () => {
+    const session = new TestSession([{ inputs: [], outputs: [] }]);
+
+    session.addOutput(' Robotik \r\n 2 \n');
+
+    expect(session.outputs).toEqual([['Robotik', '2']]);
+  });
 });
 
 describe('IOComparator edge cases', () => {
@@ -191,6 +251,83 @@ describe('TestCaseView reset behavior', () => {
     expect(document.querySelector('.input')?.textContent).toContain('<img class="injected-input" src=x>');
     expect(document.querySelector('.expected')?.textContent).toContain('<img class="injected-expected" src=x>');
     expect(document.querySelector('.output')?.textContent).toContain('<img class="injected-output" src=x>');
+  });
+
+  it('shows a readable reason whenever an IO testcase fails', () => {
+    document.body.innerHTML = '';
+
+    const view = new IOTesterView(
+      {
+        testInput: 'Input',
+        expectedOutput: 'Expected',
+        lastOutput: 'Output',
+        passed: 'Passed',
+        testCase: 'Test case',
+        hidden: 'Hidden',
+        testFailed: 'Test failed',
+        algorithmConstraintMismatch: 'Requirements missing: {violations}',
+        constraintObjectInstantiationRequired: 'create an object',
+      },
+      {
+        testcases: [{ inputs: ['Ada'], outputs: ['Ada'] }],
+      },
+      null,
+      false,
+    );
+
+    document.body.append(view.getDOM());
+    view.update(0, ['Ada'], false, {
+      type: 'algorithmConstraintMismatch',
+      violations: ['Object instantiation required'],
+    });
+
+    expect(document.querySelector('.passed')?.textContent).toContain('✗');
+    expect(document.querySelector('.passed')?.textContent).toContain('Requirements missing: create an object');
+    expect(document.querySelector('.passed')?.getAttribute('aria-label')).toContain('create an object');
+  });
+
+  it('lists configured structure requirements when the constraint checker returns no specific violation', () => {
+    document.body.innerHTML = '';
+
+    const view = new IOTesterView(
+      {
+        testInput: 'Input',
+        expectedOutput: 'Expected',
+        lastOutput: 'Output',
+        passed: 'Passed',
+        testCase: 'Test case',
+        hidden: 'Hidden',
+        testFailed: 'Test failed',
+        algorithmConstraintMismatch: 'Requirements missing: {violations}',
+        algorithmConstraintUnknownWithConfigured: 'at least one is missing: {constraints}',
+        constraintRequiredClass: 'class {value}',
+        constraintRequiredMethod: 'method {value}',
+        constraintObjectInstantiationRequired: 'create an object',
+      },
+      {
+        testcases: [{ inputs: ['Ada'], outputs: ['Ada'] }],
+      },
+      null,
+      false,
+    );
+
+    document.body.append(view.getDOM());
+    view.update(0, ['Ada'], false, {
+      type: 'algorithmConstraintMismatch',
+      violations: [],
+      constraints: {
+        requiredClassNames: 'Person, Team',
+        requiredMethodNames: 'Team.anzahl',
+        requireObjectInstantiation: true,
+      },
+    });
+
+    const statusText = document.querySelector('.passed')?.textContent || '';
+    expect(statusText).toContain('class Person');
+    expect(statusText).toContain('class Team');
+    expect(statusText).toContain('method Team.anzahl');
+    expect(statusText).toContain('create an object');
+    expect(statusText).not.toContain('one requirement was not met');
   });
 
   it('rebuilds the IO testcase markup after a reset', () => {

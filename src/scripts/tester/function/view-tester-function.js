@@ -1,6 +1,7 @@
 import TestCaseView from '../components/view-tester.js';
 import DateHandler from '../components/date-handler.js';
 import { getCodeQuestionL10nValue, tCodeQuestion } from '../../services/codequestion-l10n.js';
+import { setPassedCellStatus } from '../components/failure-reason.js';
 
 /** Displays function calls and their return values without using HTML input. */
 export default class FunctionTesterView extends TestCaseView {
@@ -74,7 +75,7 @@ export default class FunctionTesterView extends TestCaseView {
     panel.append(controls, array, detail);
   }
 
-  update(index, output, passed) {
+  update(index, output, passed, reason = null) {
     const row = this.getTestCasesAreaDiv()?.querySelector(`.table-testcase-${index} tbody tr`);
     if (!row) return;
 
@@ -91,10 +92,11 @@ export default class FunctionTesterView extends TestCaseView {
     row.classList.toggle('test-passed', passed);
 
     const statusCell = row.querySelector('.passed');
-    statusCell.textContent = passed ? '✓' : '✗';
-    statusCell.setAttribute('aria-label', passed
-      ? (this.l10n.testPassed || 'Test passed')
-      : (this.l10n.testFailed || 'Test failed'));
+    const fallbackReason = !passed && violations.length ? {
+      type: 'algorithmConstraintMismatch',
+      violations,
+    } : null;
+    setPassedCellStatus(statusCell, this.l10n, passed, reason || fallbackReason);
   }
 
   getDOM() {

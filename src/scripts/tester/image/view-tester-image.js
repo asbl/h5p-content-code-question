@@ -1,5 +1,6 @@
 import TestCaseView from '../components/view-tester';
 import DateHandler from '@scripts/tester/components/date-handler';
+import { setPassedCellStatus } from '../components/failure-reason';
 
 /**
  * Renders a list of values as text with visual line breaks.
@@ -227,7 +228,7 @@ export default class ImageTesterView extends TestCaseView {
    * Updates the "passed" status cell of a test case in the DOM.
    * @param {number} testCaseIndex
    */
-  update() {
+  update(_testCaseIndex = this.session.testCaseIndex, _output = null, _passed = null, reason = null) {
     const row = this.getTestCasesAreaDiv().querySelector(
       `.table-testcase-${this.session.testCaseIndex} tbody tr`,
     );
@@ -237,20 +238,12 @@ export default class ImageTesterView extends TestCaseView {
     }
     else {
       row.classList.remove('test-passed');
-      this.setPassedCellStatus(row.cells[3], false);
+      this.setPassedCellStatus(row.cells[3], false, reason);
     }
   }
 
-  setPassedCellStatus(cell, passed) {
-    if (!cell) return;
-
-    const label = passed
-      ? (this.l10n.testPassed || this.l10n.successText || 'Test passed')
-      : (this.l10n.testFailed || this.l10n.failedText || 'Test failed');
-
-    cell.textContent = passed ? '✓' : '✗';
-    cell.setAttribute('aria-label', label);
-    cell.title = label;
+  setPassedCellStatus(cell, passed, reason = null) {
+    setPassedCellStatus(cell, this.l10n, passed, reason);
   }
 
   /**

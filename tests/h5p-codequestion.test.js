@@ -198,6 +198,8 @@ describe('CodeQuestion', () => {
     question.applyScoreFeedback = vi.fn();
     question.sendAnsweredEvent = vi.fn();
     question.resizeActionHandler = vi.fn();
+    question.showButton = vi.fn();
+    question.hideButton = vi.fn();
     question.scheduleEvaluationFrameSync = vi.fn();
 
     const pendingCheck = question.checkAction();
@@ -266,6 +268,8 @@ describe('CodeQuestion', () => {
     question.applyScoreFeedback = vi.fn();
     question.sendAnsweredEvent = vi.fn();
     question.scheduleEvaluationFrameSync = vi.fn();
+    question.showButton = vi.fn();
+    question.hideButton = vi.fn();
 
     await question.checkAction();
 
@@ -486,6 +490,7 @@ describe('CodeQuestion', () => {
     question.defaultCode = 'print(&quot;ok&quot;)';
     question.removeFeedback = vi.fn();
     question.showButton = vi.fn();
+    question.hideButton = vi.fn();
     question.resizeActionHandler = vi.fn();
     question.codeTester = { reset: vi.fn() };
     question.codeContainer = {
@@ -1102,6 +1107,8 @@ describe('CodeQuestion', () => {
     question.sendCompletedEvent = vi.fn(() => events.push('completed'));
     question.applyScoreFeedback = vi.fn();
     question.scheduleEvaluationFrameSync = vi.fn();
+    question.showButton = vi.fn();
+    question.hideButton = vi.fn();
 
     await question.checkAction();
 
@@ -1126,5 +1133,451 @@ describe('CodeQuestion', () => {
       interactionType: 'choice',
       correctResponsesPattern: [],
     });
+  });
+
+  it('adds a hidden retry button and swaps it in after checking a multiple choice answer', async () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'multipleChoice',
+        multipleChoice: {
+          choices: [
+            { text: 'A', correct: true },
+            { text: 'B', correct: false },
+          ],
+        },
+      },
+    }, 1);
+
+    const addButtonCalls = [];
+    question.addButton = vi.fn((id, text, clicked, visible) => {
+      addButtonCalls.push({ id, visible });
+    });
+    question.showButton = vi.fn();
+    question.hideButton = vi.fn();
+    question.sendAttemptedEvent = vi.fn();
+    question.sendAnsweredEvent = vi.fn();
+    question.sendCompletedEvent = vi.fn();
+    question.applyScoreFeedback = vi.fn();
+    question.scheduleEvaluationFrameSync = vi.fn();
+
+    question.addButtons();
+
+    expect(addButtonCalls).toContainEqual({ id: 'retry', visible: false });
+
+    await question.checkAction();
+
+    expect(question.hideButton).toHaveBeenCalledWith('check-answer');
+    expect(question.showButton).toHaveBeenCalledWith('retry');
+  });
+
+  it('does not add a retry button when behaviour.enableRetry is disabled', () => {
+    const question = new CodeQuestion({
+      behaviour: { enableRetry: false },
+      gradingSettings: {
+        gradingMethod: 'multipleChoice',
+        multipleChoice: {
+          choices: [
+            { text: 'A', correct: true },
+            { text: 'B', correct: false },
+          ],
+        },
+      },
+    }, 1);
+
+    question.addButton = vi.fn();
+
+    question.addButtons();
+
+    expect(question.addButton).not.toHaveBeenCalledWith(
+      'retry',
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('marks selected multiple choice options as correct/incorrect and locks them after checking', async () => {
+    const originalMarkdown = H5P.Markdown;
+    H5P.Markdown = class MarkdownMock {
+      constructor(markdown) {
+        this.markdown = markdown;
+      }
+
+      getMarkdownDiv() {
+        const div = document.createElement('div');
+        div.textContent = this.markdown;
+        return div;
+      }
+    };
+
+    try {
+      const question = new CodeQuestion({
+        contentType: 'text_only',
+        gradingSettings: {
+          gradingMethod: 'multipleChoice',
+          multipleChoice: {
+            allowMultiple: true,
+            choices: [
+              { text: 'A', correct: true },
+              { text: 'B', correct: false },
+            ],
+          },
+        },
+      }, 1);
+      question.setContent = vi.fn();
+      question.addButton = vi.fn();
+      question.showButton = vi.fn();
+      question.hideButton = vi.fn();
+      question.removeFeedback = vi.fn();
+      question.resizeActionHandler = vi.fn();
+      question.sendAttemptedEvent = vi.fn();
+      question.sendAnsweredEvent = vi.fn();
+      question.sendCompletedEvent = vi.fn();
+      question.applyScoreFeedback = vi.fn();
+      question.scheduleEvaluationFrameSync = vi.fn();
+
+      question.registerDomElements();
+
+      const options = question.parentDiv.querySelectorAll('.codequestion-choice');
+      options[0].querySelector('input').checked = true;
+      options[0].querySelector('input').dispatchEvent(new Event('change'));
+      options[1].querySelector('input').checked = true;
+      options[1].querySelector('input').dispatchEvent(new Event('change'));
+
+      await question.checkAction();
+
+      expect(options[0].classList.contains('codequestion-choice--correct')).toBe(true);
+      expect(options[1].classList.contains('codequestion-choice--incorrect')).toBe(true);
+      expect(question.multipleChoiceFieldset.disabled).toBe(true);
+
+      question.resetTask();
+
+      expect(question.multipleChoiceFieldset.disabled).toBe(false);
+      expect(options[0].classList.contains('codequestion-choice--correct')).toBe(false);
+      expect(options[1].classList.contains('codequestion-choice--incorrect')).toBe(false);
+    }
+    finally {
+      H5P.Markdown = originalMarkdown;
+    }
+  });
+
+  it('keeps the original answer order when shuffling is disabled', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'multipleChoice',
+        multipleChoice: {
+          choices: [
+            { text: 'A', correct: true },
+            { text: 'B', correct: false },
+          ],
+        },
+      },
+    }, 1);
+
+    expect(question.getDisplayedChoices().map((choice) => choice.id)).toEqual([
+      'choice_0',
+      'choice_1',
+    ]);
+  });
+
+  it('shuffles the multiple choice display order without changing choice identity', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'multipleChoice',
+        multipleChoice: {
+          shuffleAnswers: true,
+          choices: [
+            { text: 'A', correct: true },
+            { text: 'B', correct: false },
+            { text: 'C', correct: false },
+          ],
+        },
+      },
+    }, 1);
+
+    const displayedIds = question.getDisplayedChoices().map((choice) => choice.id);
+
+    expect(displayedIds.slice().sort()).toEqual(['choice_0', 'choice_1', 'choice_2']);
+    // Correctness/xAPI reporting must stay tied to the original id, not the
+    // shuffled display position.
+    expect(question.getCorrectChoiceIds()).toEqual(['choice_0']);
+  });
+
+  it('warns when no answer option is marked correct', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      const question = new CodeQuestion({
+        gradingSettings: {
+          gradingMethod: 'multipleChoice',
+          multipleChoice: {
+            choices: [
+              { text: 'A', correct: false },
+              { text: 'B', correct: false },
+            ],
+          },
+        },
+      }, 1);
+
+      expect(question.isMultipleChoiceQuestion()).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('never be answered correctly'));
+    }
+    finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('warns when a single-answer multiple choice question marks several options as correct', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      const question = new CodeQuestion({
+        gradingSettings: {
+          gradingMethod: 'multipleChoice',
+          multipleChoice: {
+            allowMultiple: false,
+            choices: [
+              { text: 'A', correct: true },
+              { text: 'B', correct: true },
+            ],
+          },
+        },
+      }, 1);
+
+      expect(question.isMultipleChoiceQuestion()).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Allow multiple correct answers'),
+      );
+    }
+    finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('uses built-in sort grading without creating a code tester', () => {
+    const question = new CodeQuestion({
+      contentType: 'text_only',
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: 'Second' },
+            { text: 'Third' },
+          ],
+        },
+      },
+    }, 1);
+
+    expect(mocks.createTester).not.toHaveBeenCalled();
+    expect(question.isSortQuestion()).toBe(true);
+    expect(question.codeTester).toBeNull();
+    expect(question.hasCheckButton).toBe(true);
+    expect(question.hasRunButton).toBe(false);
+    expect(question.getMaxScore()).toBe(1);
+    expect(question.currentSortOrder.sort()).toEqual(['item_0', 'item_1', 'item_2']);
+  });
+
+  it('requires the exact original order for sort grading', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: 'Second' },
+            { text: 'Third' },
+          ],
+        },
+      },
+    }, 1);
+
+    question.currentSortOrder = ['item_0', 'item_2', 'item_1'];
+    expect(question.getScore()).toBe(0);
+    expect(question.success()).toBe(false);
+
+    question.currentSortOrder = ['item_0', 'item_1', 'item_2'];
+    expect(question.getScore()).toBe(1);
+    expect(question.success()).toBe(true);
+  });
+
+  it('renders sort items as markdown and allows reordering via move buttons', () => {
+    const originalMarkdown = H5P.Markdown;
+    H5P.Markdown = class MarkdownMock {
+      constructor(markdown) {
+        this.markdown = markdown;
+      }
+
+      getMarkdownDiv() {
+        const div = document.createElement('div');
+        div.textContent = this.markdown;
+        return div;
+      }
+    };
+
+    const question = new CodeQuestion({
+      contentType: 'text_only',
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: 'Second' },
+            { text: 'Third' },
+          ],
+        },
+      },
+    }, 1);
+    // Pin a deterministic initial order for the assertions below.
+    question.currentSortOrder = ['item_0', 'item_1', 'item_2'];
+    question.setContent = vi.fn();
+    question.addButton = vi.fn();
+
+    try {
+      question.registerDomElements();
+
+      const items = question.parentDiv.querySelectorAll('.codequestion-sort-item');
+      expect(items).toHaveLength(3);
+      expect(question.getAnswerGiven()).toBe(false);
+
+      items[0].querySelector('.codequestion-sort-item__move--down').click();
+
+      expect(question.currentSortOrder).toEqual(['item_1', 'item_0', 'item_2']);
+      expect(question.getAnswerGiven()).toBe(true);
+
+      const reorderedItems = question.parentDiv.querySelectorAll('.codequestion-sort-item');
+      expect(reorderedItems[0].dataset.itemId).toBe('item_1');
+      expect(reorderedItems[1].dataset.itemId).toBe('item_0');
+    }
+    finally {
+      H5P.Markdown = originalMarkdown;
+    }
+  });
+
+  it('persists sort order state and exposes sequencing xAPI metadata', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: 'Second' },
+          ],
+        },
+      },
+    }, 1);
+
+    question.currentSortOrder = ['item_1', 'item_0'];
+    question.answerGiven = true;
+
+    expect(question.getState()).toEqual({
+      sortOrder: ['item_1', 'item_0'],
+    });
+    expect(question.buildResultStatement().response).toBe('item_1[,]item_0');
+    expect(question.getxAPIDefinition()).toMatchObject({
+      interactionType: 'sequencing',
+      correctResponsesPattern: ['item_0[,]item_1'],
+      choices: [
+        { id: 'item_0' },
+        { id: 'item_1' },
+      ],
+    });
+  });
+
+  it('sends sort answered before completed during check', async () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: 'Second' },
+          ],
+        },
+      },
+    }, 1);
+    const events = [];
+    question.sendAttemptedEvent = vi.fn(() => events.push('attempted'));
+    question.sendAnsweredEvent = vi.fn(() => events.push('answered'));
+    question.sendCompletedEvent = vi.fn(() => events.push('completed'));
+    question.applyScoreFeedback = vi.fn();
+    question.scheduleEvaluationFrameSync = vi.fn();
+    question.showButton = vi.fn();
+    question.hideButton = vi.fn();
+
+    await question.checkAction();
+
+    expect(events).toEqual(['attempted', 'answered', 'completed']);
+  });
+
+  it('restores a valid persisted sort order across reloads', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: 'Second' },
+            { text: 'Third' },
+          ],
+        },
+      },
+    }, 1, {
+      previousState: {
+        sortOrder: ['item_2', 'item_0', 'item_1'],
+      },
+    });
+
+    expect(question.currentSortOrder).toEqual(['item_2', 'item_0', 'item_1']);
+    expect(question.getAnswerGiven()).toBe(true);
+  });
+
+  it('falls back to a fresh shuffle when the persisted sort order no longer matches the items', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: 'Second' },
+            { text: 'Third' },
+          ],
+        },
+      },
+    }, 1, {
+      previousState: {
+        // Stale: missing item_2, e.g. items were edited after the learner started.
+        sortOrder: ['item_0', 'item_1'],
+      },
+    });
+
+    expect(question.currentSortOrder.slice().sort()).toEqual(['item_0', 'item_1', 'item_2']);
+  });
+
+  it('re-shuffles the sort order and clears feedback on retry', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: 'Second' },
+          ],
+        },
+      },
+    }, 1);
+    question.showButton = vi.fn();
+    question.hideButton = vi.fn();
+    question.removeFeedback = vi.fn();
+    question.resizeActionHandler = vi.fn();
+
+    question.currentSortOrder = ['item_0', 'item_1'];
+    question.answerGiven = true;
+    question.setSortLocked(true);
+
+    question.resetTask();
+
+    expect(question.answerGiven).toBe(false);
+    expect(question.currentSortOrder.slice().sort()).toEqual(['item_0', 'item_1']);
   });
 });
