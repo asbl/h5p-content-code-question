@@ -1580,4 +1580,194 @@ describe('CodeQuestion', () => {
     expect(question.answerGiven).toBe(false);
     expect(question.currentSortOrder.slice().sort()).toEqual(['item_0', 'item_1']);
   });
+
+  it('warns when sort grading is configured with fewer than two items', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      const question = new CodeQuestion({
+        gradingSettings: {
+          gradingMethod: 'sortItems',
+          sortItems: {
+            items: [
+              { text: 'Only one' },
+            ],
+          },
+        },
+      }, 1);
+
+      expect(question.isSortQuestion()).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('needs at least two items'),
+      );
+    }
+    finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('filters out blank sort items configured by the author', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: '   ' },
+            { text: 'Second' },
+          ],
+        },
+      },
+    }, 1);
+
+    expect(question.sortQuestion.items.map((item) => item.text)).toEqual(['First', 'Second']);
+  });
+
+  it('does not move a sort item past the first or last position', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: 'Second' },
+            { text: 'Third' },
+          ],
+        },
+      },
+    }, 1);
+
+    question.currentSortOrder = ['item_0', 'item_1', 'item_2'];
+    question.answerGiven = false;
+
+    question.moveSortItem('item_0', -1);
+    expect(question.currentSortOrder).toEqual(['item_0', 'item_1', 'item_2']);
+    expect(question.answerGiven).toBe(false);
+
+    question.moveSortItem('item_2', 1);
+    expect(question.currentSortOrder).toEqual(['item_0', 'item_1', 'item_2']);
+    expect(question.answerGiven).toBe(false);
+  });
+
+  it('falls back to a fresh shuffle when the persisted sort order has duplicate ids', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: 'Second' },
+            { text: 'Third' },
+          ],
+        },
+      },
+    }, 1, {
+      previousState: {
+        sortOrder: ['item_0', 'item_0', 'item_2'],
+      },
+    });
+
+    expect(question.currentSortOrder.slice().sort()).toEqual(['item_0', 'item_1', 'item_2']);
+  });
+
+  it('reorders items via drag and drop and clears drag state on drop', () => {
+    const originalMarkdown = H5P.Markdown;
+    H5P.Markdown = class MarkdownMock {
+      constructor(markdown) {
+        this.markdown = markdown;
+      }
+
+      getMarkdownDiv() {
+        const div = document.createElement('div');
+        div.textContent = this.markdown;
+        return div;
+      }
+    };
+
+    const question = new CodeQuestion({
+      contentType: 'text_only',
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: 'Second' },
+            { text: 'Third' },
+          ],
+        },
+      },
+    }, 1);
+    question.currentSortOrder = ['item_0', 'item_1', 'item_2'];
+    question.setContent = vi.fn();
+    question.addButton = vi.fn();
+
+    try {
+      question.registerDomElements();
+
+      const items = question.parentDiv.querySelectorAll('.codequestion-sort-item');
+      const dataTransfer = { setData: vi.fn(), effectAllowed: '', dropEffect: '' };
+
+      question.handleSortDragStart({ dataTransfer, currentTarget: items[2] }, 'item_2');
+      expect(items[2].classList.contains('is-dragging')).toBe(true);
+
+      question.handleSortDragOver({ preventDefault: vi.fn(), dataTransfer }, 'item_0');
+      expect(question.currentSortOrder).toEqual(['item_2', 'item_0', 'item_1']);
+
+      question.handleSortDrop({ preventDefault: vi.fn() });
+      expect(question.getAnswerGiven()).toBe(true);
+
+      question.handleSortDragEnd();
+      expect(question.draggedSortItemId).toBeNull();
+      expect(question.parentDiv.querySelectorAll('.is-dragging')).toHaveLength(0);
+    }
+    finally {
+      H5P.Markdown = originalMarkdown;
+    }
+  });
+
+  it('marks items as correct/incorrect after checking the sort answer', () => {
+    const originalMarkdown = H5P.Markdown;
+    H5P.Markdown = class MarkdownMock {
+      constructor(markdown) {
+        this.markdown = markdown;
+      }
+
+      getMarkdownDiv() {
+        const div = document.createElement('div');
+        div.textContent = this.markdown;
+        return div;
+      }
+    };
+
+    const question = new CodeQuestion({
+      contentType: 'text_only',
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [
+            { text: 'First' },
+            { text: 'Second' },
+            { text: 'Third' },
+          ],
+        },
+      },
+    }, 1);
+    question.setContent = vi.fn();
+    question.addButton = vi.fn();
+
+    try {
+      question.registerDomElements();
+      question.currentSortOrder = ['item_0', 'item_2', 'item_1'];
+
+      question.applySortFeedback();
+
+      const byId = (id) => question.sortItemElements.get(id);
+      expect(byId('item_0').classList.contains('codequestion-sort-item--correct')).toBe(true);
+      expect(byId('item_2').classList.contains('codequestion-sort-item--incorrect')).toBe(true);
+      expect(byId('item_1').classList.contains('codequestion-sort-item--incorrect')).toBe(true);
+    }
+    finally {
+      H5P.Markdown = originalMarkdown;
+    }
+  });
 });
