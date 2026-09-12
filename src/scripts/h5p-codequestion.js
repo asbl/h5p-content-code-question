@@ -2,7 +2,6 @@ import Util from './services/util';
 import {
   createCodeQuestionL10n,
   getCodeQuestionL10nValue,
-  tCodeQuestion,
 } from './services/codequestion-l10n';
 import ManualRuntimeFactory from './runtime/factory-runtime-manual';
 import ContainerFactory from './container/factory-container';
@@ -11,6 +10,8 @@ import TestRuntimeFactory from './runtime/factory-runtime-test';
 import { Runtime } from './runtime/runtime';
 import CodeQuestionContainer from './container/codequestion-container';
 import CodeQuestionStateService from './services/codequestion-state';
+import MultipleChoiceMode from './modes/multiple-choice-mode';
+import SortItemsMode from './modes/sort-items-mode';
 
 /**
  * @class
@@ -87,28 +88,22 @@ export default class CodeQuestion extends H5P.Question {
     }
 
     this.testcases = params.gradingSettings.testCases || [];
-    this.multipleChoice = this.normalizeMultipleChoiceSettings(
+    this.multipleChoiceMode = new MultipleChoiceMode(
+      this,
       params.gradingSettings?.multipleChoice || {},
-    );
-    this.selectedChoices = this.normalizeSelectedChoices(
       extras?.previousState?.selectedChoices,
     );
-    this.answerGiven = this.selectedChoices.size > 0;
-    this.multipleChoiceDisplayOrder = this.buildMultipleChoiceDisplayOrder();
-    this.validateMultipleChoiceConfig();
+    this.answerGiven = this.multipleChoiceMode.selectedChoices.size > 0;
 
     // ---- Drag & drop sort question defaults -----------------------------
-    this.sortQuestion = this.normalizeSortSettings(
+    this.sortItemsMode = new SortItemsMode(
+      this,
       params.gradingSettings?.sortItems || {},
-    );
-    this.currentSortOrder = this.normalizeSortOrder(
       extras?.previousState?.sortOrder,
-      this.sortQuestion.items,
     );
     if (this.isSortQuestion() && Array.isArray(extras?.previousState?.sortOrder) && extras.previousState.sortOrder.length > 0) {
       this.answerGiven = true;
     }
-    this.validateSortConfig();
 
     /* Legacy handling:
     solutionCode can be handled in
@@ -163,107 +158,8 @@ export default class CodeQuestion extends H5P.Question {
     return 'pseudocode';
   }
 
-  normalizeMultipleChoiceSettings(settings = {}) {
-    const rawChoices = Array.isArray(settings.choices) ? settings.choices : [];
-    const choices = rawChoices
-      .map((choice, index) => ({
-        id: `choice_${index}`,
-        text: typeof choice?.text === 'string' ? choice.text : '',
-        correct: choice?.correct === true,
-      }))
-      .filter((choice) => choice.text.trim() !== '');
-
-    return {
-      allowMultiple: settings.allowMultiple === true,
-      shuffleAnswers: settings.shuffleAnswers === true,
-      choices,
-    };
-  }
-
-  /**
-   * Builds a (possibly shuffled) display order for multiple choice answer
-   * options. Choice ids stay tied to their original authoring index so
-   * xAPI reporting and persisted state remain stable across shuffles.
-   * @returns {number[]} Indices into `this.multipleChoice.choices`.
-   */
-  buildMultipleChoiceDisplayOrder() {
-    const order = this.multipleChoice.choices.map((_, index) => index);
-
-    if (!this.multipleChoice.shuffleAnswers) {
-      return order;
-    }
-
-    for (let i = order.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [order[i], order[j]] = [order[j], order[i]];
-    }
-
-    return order;
-  }
-
-  /**
-   * Returns the answer choices in display order.
-   * @returns {Array<object>} Choices, shuffled when configured.
-   */
-  getDisplayedChoices() {
-    return this.multipleChoiceDisplayOrder.map(
-      (choiceIndex) => this.multipleChoice.choices[choiceIndex],
-    );
-  }
-
-  /**
-   * Warns authors/developers in the console when a multiple choice setup
-   * can never be answered correctly. This is a defensive authoring aid,
-   * not shown to learners (it must not leak answer-key information).
-   * @returns {void}
-   */
-  validateMultipleChoiceConfig() {
-    if (!this.isMultipleChoiceQuestion()) {
-      return;
-    }
-
-    const correctChoiceCount = this.multipleChoice.choices
-      .filter((choice) => choice.correct).length;
-
-    if (correctChoiceCount === 0) {
-      console.warn(
-        'H5P.CodeQuestion: multiple choice grading has no answer option marked '
-        + 'as correct. This question can never be answered correctly.',
-      );
-    }
-
-    if (!this.multipleChoice.allowMultiple && correctChoiceCount > 1) {
-      console.warn(
-        'H5P.CodeQuestion: multiple choice grading marks several options as '
-        + 'correct, but "Allow multiple correct answers" is off. Only one '
-        + 'option can be selected, so this question can never be answered '
-        + 'correctly.',
-      );
-    }
-  }
-
-  normalizeSelectedChoices(selectedChoices = []) {
-    return new Set(
-      (Array.isArray(selectedChoices) ? selectedChoices : [])
-        .map((choiceId) => String(choiceId || ''))
-        .filter(Boolean),
-    );
-  }
-
   isMultipleChoiceQuestion() {
     return this.gradingMethod === 'multipleChoice';
-  }
-
-  normalizeSortSettings(settings = {}) {
-    const rawItems = Array.isArray(settings.items) ? settings.items : [];
-    const items = rawItems
-      .map((item, index) => ({
-        id: `item_${index}`,
-        text: typeof item?.text === 'string' ? item.text : '',
-      }))
-      .filter((item) => item.text.trim() !== '');
-
-    return { items };
   }
 
   isSortQuestion() {
@@ -271,70 +167,11 @@ export default class CodeQuestion extends H5P.Question {
   }
 
   /**
-   * Fisher-Yates shuffle used both for the initial display order and for
-   * building a fresh order on retry.
-   * @param {string[]} itemIds Item ids to shuffle.
-   * @returns {string[]} A new, shuffled array of item ids.
+   * Returns the answer choices in display order.
+   * @returns {Array<object>} Choices, shuffled when configured.
    */
-  buildSortDisplayOrder(itemIds) {
-    const order = [...itemIds];
-
-    for (let i = order.length - 1; i > 0; i -= 1) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [order[i], order[j]] = [order[j], order[i]];
-    }
-
-    return order;
-  }
-
-  /**
-   * Restores a persisted sort order if, and only if, it still matches the
-   * current item set exactly. Otherwise falls back to a fresh shuffle (e.g.
-   * items were edited by the author after the learner started).
-   * @param {string[]} previousOrder Persisted item id order.
-   * @param {Array<object>} items Currently configured sort items.
-   * @returns {string[]} A valid display order of item ids.
-   */
-  normalizeSortOrder(previousOrder, items) {
-    const validIds = items.map((item) => item.id);
-    const cleanedPrevious = (Array.isArray(previousOrder) ? previousOrder : [])
-      .map((itemId) => String(itemId || ''))
-      .filter((itemId) => validIds.includes(itemId));
-
-    const isCompleteAndValid = cleanedPrevious.length === validIds.length
-      && new Set(cleanedPrevious).size === validIds.length;
-
-    return isCompleteAndValid ? cleanedPrevious : this.buildSortDisplayOrder(validIds);
-  }
-
-  /**
-   * Warns authors/developers when a sort grading setup can never be solved.
-   * Defensive authoring aid only, never shown to learners.
-   * @returns {void}
-   */
-  validateSortConfig() {
-    if (!this.isSortQuestion()) {
-      return;
-    }
-
-    if (this.sortQuestion.items.length < 2) {
-      console.warn(
-        'H5P.CodeQuestion: sort grading needs at least two items to form an '
-        + 'orderable sequence.',
-      );
-    }
-  }
-
-  getCorrectSortItemIds() {
-    return this.sortQuestion.items.map((item) => item.id);
-  }
-
-  hasCorrectSortOrder() {
-    const correctOrder = this.getCorrectSortItemIds();
-
-    return correctOrder.length > 0
-      && this.currentSortOrder.length === correctOrder.length
-      && this.currentSortOrder.every((itemId, index) => itemId === correctOrder[index]);
+  getDisplayedChoices() {
+    return this.multipleChoiceMode.getDisplayedChoices();
   }
 
   isInternalFrame() {
@@ -704,7 +541,7 @@ export default class CodeQuestion extends H5P.Question {
     }
 
     if (this.isSortQuestion()) {
-      const correctOrder = this.getCorrectSortItemIds();
+      const correctOrder = this.sortItemsMode.getCorrectItemIds();
       return correctOrder.length > 0 ? [correctOrder.join('[,]')] : [];
     }
 
@@ -803,8 +640,8 @@ export default class CodeQuestion extends H5P.Question {
     this.applyScoreFeedback(score, maxScore);
 
     if (this.isMultipleChoiceQuestion()) {
-      this.applyMultipleChoiceFeedback();
-      this.setMultipleChoiceLocked(true);
+      this.multipleChoiceMode.applyFeedback();
+      this.multipleChoiceMode.setLocked(true);
     }
 
     if (this.isSortQuestion()) {
@@ -1006,7 +843,7 @@ export default class CodeQuestion extends H5P.Question {
       contentContainers: this.codeContainers,
     }) || {};
 
-    if (this.isMultipleChoiceQuestion() && this.selectedChoices.size > 0) {
+    if (this.isMultipleChoiceQuestion() && this.multipleChoiceMode.selectedChoices.size > 0) {
       state.selectedChoices = this.getSelectedChoiceIds();
     }
 
@@ -1092,10 +929,10 @@ export default class CodeQuestion extends H5P.Question {
 
     contentDiv.append(contentPartsDiv);
     if (this.isMultipleChoiceQuestion()) {
-      contentDiv.append(this.renderMultipleChoice());
+      contentDiv.append(this.multipleChoiceMode.render());
     }
     if (this.isSortQuestion()) {
-      contentDiv.append(this.renderSortQuestion());
+      contentDiv.append(this.sortItemsMode.render());
     }
     this.parentDiv.append(contentDiv);
 
@@ -1363,406 +1200,85 @@ export default class CodeQuestion extends H5P.Question {
     }
   }
 
-  renderMultipleChoice() {
-    const wrapper = document.createElement('fieldset');
-    wrapper.className = 'codequestion-multiple-choice';
+  /* ------------------------------------------------------------------ *
+   *  Multiple choice / sort item mode access
+   *
+   *  These properties and methods exist so external callers (and the
+   *  mode classes' own DOM handlers) can keep addressing state the way
+   *  they did before the multipleChoice/sortItems grading methods were
+   *  extracted into MultipleChoiceMode/SortItemsMode. See DEVELOP.md.
+   * ------------------------------------------------------------------ */
 
-    const legend = document.createElement('legend');
-    legend.className = 'sr-only';
-    legend.textContent = getCodeQuestionL10nValue(this.l10n, 'multipleChoiceAnswer');
-    wrapper.append(legend);
-
-    this.getDisplayedChoices().forEach((choice, index) => {
-      const option = document.createElement('label');
-      option.className = 'codequestion-choice';
-
-      const input = document.createElement('input');
-      input.type = this.multipleChoice.allowMultiple ? 'checkbox' : 'radio';
-      input.name = `${this.codeQuestionUID}-multiple-choice`;
-      input.value = choice.id;
-      input.checked = this.selectedChoices.has(choice.id);
-      input.addEventListener('change', () => this.handleChoiceChange(input));
-
-      const marker = document.createElement('span');
-      marker.className = 'codequestion-choice__marker';
-      marker.textContent = String.fromCharCode(65 + index);
-
-      const body = document.createElement('span');
-      body.className = 'codequestion-choice__body';
-      const markdown = new H5P.Markdown(choice.text, this.getMarkdownOptions());
-      this.appendResolvedMarkdown(body, markdown);
-
-      const state = document.createElement('span');
-      state.className = 'codequestion-choice__state sr-only';
-
-      option.append(input, marker, body, state);
-      wrapper.append(option);
-    });
-
-    this.multipleChoiceFieldset = wrapper;
-
-    return wrapper;
+  get multipleChoice() {
+    return this.multipleChoiceMode.settings;
   }
 
-  /**
-   * Enables/disables all multiple choice inputs at once, e.g. once an
-   * attempt has been checked, until the learner retries.
-   * @param {boolean} locked True to disable the answer options.
-   * @returns {void}
-   */
-  setMultipleChoiceLocked(locked) {
-    if (this.multipleChoiceFieldset) {
-      this.multipleChoiceFieldset.disabled = locked;
-    }
+  get selectedChoices() {
+    return this.multipleChoiceMode.selectedChoices;
   }
 
-  /**
-   * Marks the currently selected multiple choice option(s) as correct or
-   * incorrect. Unselected options are intentionally left unmarked so this
-   * does not reveal the solution to unanswered/wrong choices.
-   * @returns {void}
-   */
-  applyMultipleChoiceFeedback() {
-    if (!this.multipleChoiceFieldset) {
-      return;
-    }
-
-    const correctIds = new Set(this.getCorrectChoiceIds());
-
-    this.multipleChoiceFieldset.querySelectorAll('.codequestion-choice').forEach((option) => {
-      const input = option.querySelector('input');
-      const state = option.querySelector('.codequestion-choice__state');
-
-      option.classList.remove('codequestion-choice--correct', 'codequestion-choice--incorrect');
-      if (state) {
-        state.textContent = '';
-      }
-
-      if (!input?.checked) {
-        return;
-      }
-
-      const isCorrect = correctIds.has(input.value);
-      option.classList.add(
-        isCorrect ? 'codequestion-choice--correct' : 'codequestion-choice--incorrect',
-      );
-      if (state) {
-        state.textContent = getCodeQuestionL10nValue(
-          this.l10n,
-          isCorrect ? 'choiceCorrect' : 'choiceIncorrect',
-        );
-      }
-    });
+  get multipleChoiceFieldset() {
+    return this.multipleChoiceMode.fieldset;
   }
 
-  /**
-   * Removes any correct/incorrect markup from the multiple choice options,
-   * e.g. before a retry.
-   * @returns {void}
-   */
-  clearMultipleChoiceFeedback() {
-    this.multipleChoiceFieldset?.querySelectorAll('.codequestion-choice').forEach((option) => {
-      option.classList.remove('codequestion-choice--correct', 'codequestion-choice--incorrect');
-      const state = option.querySelector('.codequestion-choice__state');
-      if (state) {
-        state.textContent = '';
-      }
-    });
+  get sortQuestion() {
+    return this.sortItemsMode.settings;
   }
 
-  renderSortQuestion() {
-    const wrapper = document.createElement('fieldset');
-    wrapper.className = 'codequestion-sort';
-
-    const legend = document.createElement('legend');
-    legend.className = 'sr-only';
-    legend.textContent = getCodeQuestionL10nValue(this.l10n, 'sortQuestionAnswer');
-    wrapper.append(legend);
-
-    const hint = document.createElement('p');
-    hint.className = 'codequestion-sort__hint';
-    hint.textContent = getCodeQuestionL10nValue(this.l10n, 'sortInstructions');
-    wrapper.append(hint);
-
-    const status = document.createElement('div');
-    status.className = 'sr-only';
-    status.setAttribute('aria-live', 'polite');
-    this.sortStatusElement = status;
-    wrapper.append(status);
-
-    const list = document.createElement('ol');
-    list.className = 'codequestion-sort-list';
-    this.sortListElement = list;
-    this.sortItemElements = new Map();
-
-    this.currentSortOrder.forEach((itemId) => {
-      list.append(this.buildSortItemElement(itemId));
-    });
-
-    wrapper.append(list);
-    this.sortFieldset = wrapper;
-
-    return wrapper;
+  get currentSortOrder() {
+    return this.sortItemsMode.currentSortOrder;
   }
 
-  buildSortItemElement(itemId) {
-    const item = this.sortQuestion.items.find((candidate) => candidate.id === itemId);
-
-    const li = document.createElement('li');
-    li.className = 'codequestion-sort-item';
-    li.draggable = true;
-    li.dataset.itemId = itemId;
-    li.addEventListener('dragstart', (event) => this.handleSortDragStart(event, itemId));
-    li.addEventListener('dragover', (event) => this.handleSortDragOver(event, itemId));
-    li.addEventListener('drop', (event) => this.handleSortDrop(event));
-    li.addEventListener('dragend', () => this.handleSortDragEnd());
-
-    const handle = document.createElement('span');
-    handle.className = 'codequestion-sort-item__handle';
-    handle.setAttribute('aria-hidden', 'true');
-    handle.textContent = '⠿';
-
-    const body = document.createElement('span');
-    body.className = 'codequestion-sort-item__body';
-    const markdown = new H5P.Markdown(item?.text || '', this.getMarkdownOptions());
-    this.appendResolvedMarkdown(body, markdown);
-
-    const state = document.createElement('span');
-    state.className = 'codequestion-sort-item__state sr-only';
-
-    const controls = document.createElement('span');
-    controls.className = 'codequestion-sort-item__controls';
-
-    const upButton = document.createElement('button');
-    upButton.type = 'button';
-    upButton.className = 'codequestion-sort-item__move codequestion-sort-item__move--up';
-    upButton.setAttribute('aria-label', getCodeQuestionL10nValue(this.l10n, 'moveItemUp'));
-    upButton.addEventListener('click', () => this.moveSortItem(itemId, -1));
-
-    const downButton = document.createElement('button');
-    downButton.type = 'button';
-    downButton.className = 'codequestion-sort-item__move codequestion-sort-item__move--down';
-    downButton.setAttribute('aria-label', getCodeQuestionL10nValue(this.l10n, 'moveItemDown'));
-    downButton.addEventListener('click', () => this.moveSortItem(itemId, 1));
-
-    controls.append(upButton, downButton);
-    li.append(handle, body, state, controls);
-
-    this.sortItemElements.set(itemId, li);
-
-    return li;
+  set currentSortOrder(order) {
+    this.sortItemsMode.currentSortOrder = order;
   }
 
-  /**
-   * Moves an item up/down via the keyboard-accessible controls, reorders
-   * the underlying array and DOM, and announces the new position.
-   * @param {string} itemId Id of the item to move.
-   * @param {number} direction -1 to move up, 1 to move down.
-   * @returns {void}
-   */
-  moveSortItem(itemId, direction) {
-    const fromIndex = this.currentSortOrder.indexOf(itemId);
-    const toIndex = fromIndex + direction;
-
-    if (fromIndex === -1 || toIndex < 0 || toIndex >= this.currentSortOrder.length) {
-      return;
-    }
-
-    this.currentSortOrder.splice(fromIndex, 1);
-    this.currentSortOrder.splice(toIndex, 0, itemId);
-    this.answerGiven = true;
-
-    this.reorderSortListDOM();
-    this.announceSortPosition(toIndex);
-    this.focusSortItemMoveButton(itemId, direction);
+  get sortItemElements() {
+    return this.sortItemsMode.sortItemElements;
   }
 
-  /**
-   * Re-appends the existing item elements in `currentSortOrder`, without
-   * recreating them, so DOM identity (and thus event listeners) survives.
-   * @returns {void}
-   */
-  reorderSortListDOM() {
-    if (!this.sortListElement || !this.sortItemElements) {
-      return;
-    }
-
-    this.currentSortOrder.forEach((itemId) => {
-      const element = this.sortItemElements.get(itemId);
-      if (element) {
-        this.sortListElement.append(element);
-      }
-    });
-  }
-
-  announceSortPosition(index) {
-    if (!this.sortStatusElement) {
-      return;
-    }
-
-    this.sortStatusElement.textContent = tCodeQuestion(this.l10n, 'itemMovedTo', {
-      position: index + 1,
-      total: this.currentSortOrder.length,
-    });
-  }
-
-  focusSortItemMoveButton(itemId, direction) {
-    const selector = direction < 0
-      ? '.codequestion-sort-item__move--up'
-      : '.codequestion-sort-item__move--down';
-
-    this.sortItemElements?.get(itemId)?.querySelector?.(selector)?.focus?.();
-  }
-
-  handleSortDragStart(event, itemId) {
-    if (this.sortFieldset?.disabled) {
-      event.preventDefault();
-      return;
-    }
-
-    this.draggedSortItemId = itemId;
-    event.dataTransfer?.setData('text/plain', itemId);
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = 'move';
-    }
-    event.currentTarget?.classList?.add('is-dragging');
-  }
-
-  handleSortDragOver(event, itemId) {
-    if (this.sortFieldset?.disabled || !this.draggedSortItemId) {
-      return;
-    }
-
-    event.preventDefault();
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = 'move';
-    }
-
-    if (this.draggedSortItemId === itemId) {
-      return;
-    }
-
-    const fromIndex = this.currentSortOrder.indexOf(this.draggedSortItemId);
-    const toIndex = this.currentSortOrder.indexOf(itemId);
-
-    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
-      return;
-    }
-
-    this.currentSortOrder.splice(fromIndex, 1);
-    this.currentSortOrder.splice(toIndex, 0, this.draggedSortItemId);
-    this.reorderSortListDOM();
-  }
-
-  handleSortDrop(event) {
-    event.preventDefault();
-    if (this.draggedSortItemId) {
-      this.answerGiven = true;
-    }
-  }
-
-  handleSortDragEnd() {
-    this.sortListElement
-      ?.querySelectorAll?.('.codequestion-sort-item.is-dragging')
-      ?.forEach((element) => element.classList.remove('is-dragging'));
-
-    this.draggedSortItemId = null;
-  }
-
-  /**
-   * Enables/disables the sort item controls, e.g. once an attempt has been
-   * checked, until the learner retries.
-   * @param {boolean} locked True to disable further reordering.
-   * @returns {void}
-   */
-  setSortLocked(locked) {
-    if (this.sortFieldset) {
-      this.sortFieldset.disabled = locked;
-    }
-  }
-
-  /**
-   * Marks each sort item as correctly/incorrectly placed after checking.
-   * @returns {void}
-   */
-  applySortFeedback() {
-    if (!this.sortFieldset) {
-      return;
-    }
-
-    const correctOrder = this.getCorrectSortItemIds();
-
-    this.currentSortOrder.forEach((itemId, index) => {
-      const element = this.sortItemElements?.get(itemId);
-      if (!element) {
-        return;
-      }
-
-      const isCorrect = correctOrder[index] === itemId;
-      element.classList.remove('codequestion-sort-item--correct', 'codequestion-sort-item--incorrect');
-      element.classList.add(
-        isCorrect ? 'codequestion-sort-item--correct' : 'codequestion-sort-item--incorrect',
-      );
-
-      const state = element.querySelector('.codequestion-sort-item__state');
-      if (state) {
-        state.textContent = getCodeQuestionL10nValue(
-          this.l10n,
-          isCorrect ? 'choiceCorrect' : 'choiceIncorrect',
-        );
-      }
-    });
-  }
-
-  /**
-   * Removes any correct/incorrect markup from the sort items, e.g. before a
-   * retry.
-   * @returns {void}
-   */
-  clearSortFeedback() {
-    this.sortItemElements?.forEach((element) => {
-      element.classList.remove('codequestion-sort-item--correct', 'codequestion-sort-item--incorrect');
-      const state = element.querySelector('.codequestion-sort-item__state');
-      if (state) {
-        state.textContent = '';
-      }
-    });
+  get draggedSortItemId() {
+    return this.sortItemsMode.draggedSortItemId;
   }
 
   handleChoiceChange(input) {
-    if (!this.multipleChoice.allowMultiple) {
-      this.selectedChoices.clear();
-    }
-
-    if (input.checked) {
-      this.selectedChoices.add(input.value);
-    }
-    else {
-      this.selectedChoices.delete(input.value);
-    }
-
-    this.answerGiven = this.selectedChoices.size > 0;
+    this.multipleChoiceMode.handleChoiceChange(input);
   }
 
   getSelectedChoiceIds() {
-    return this.multipleChoice.choices
-      .map((choice) => choice.id)
-      .filter((choiceId) => this.selectedChoices.has(choiceId));
+    return this.multipleChoiceMode.getSelectedChoiceIds();
   }
 
   getCorrectChoiceIds() {
-    return this.multipleChoice.choices
-      .filter((choice) => choice.correct)
-      .map((choice) => choice.id);
+    return this.multipleChoiceMode.getCorrectChoiceIds();
   }
 
-  hasCorrectChoiceSelection() {
-    const selected = this.getSelectedChoiceIds();
-    const correct = this.getCorrectChoiceIds();
+  moveSortItem(itemId, direction) {
+    this.sortItemsMode.moveItem(itemId, direction);
+  }
 
-    return correct.length > 0
-      && selected.length === correct.length
-      && selected.every((choiceId) => correct.includes(choiceId));
+  handleSortDragStart(event, itemId) {
+    this.sortItemsMode.handleDragStart(event, itemId);
+  }
+
+  handleSortDragOver(event, itemId) {
+    this.sortItemsMode.handleDragOver(event, itemId);
+  }
+
+  handleSortDrop(event) {
+    this.sortItemsMode.handleDrop(event);
+  }
+
+  handleSortDragEnd() {
+    this.sortItemsMode.handleDragEnd();
+  }
+
+  setSortLocked(locked) {
+    this.sortItemsMode.setLocked(locked);
+  }
+
+  applySortFeedback() {
+    this.sortItemsMode.applyFeedback();
   }
 
   generateAssetsArea() {
@@ -1777,11 +1293,11 @@ export default class CodeQuestion extends H5P.Question {
 
   getScore() {
     if (this.isMultipleChoiceQuestion()) {
-      return this.hasCorrectChoiceSelection() ? this.maxScore : 0;
+      return this.multipleChoiceMode.hasCorrectSelection() ? this.maxScore : 0;
     }
 
     if (this.isSortQuestion()) {
-      return this.hasCorrectSortOrder() ? this.maxScore : 0;
+      return this.sortItemsMode.hasCorrectOrder() ? this.maxScore : 0;
     }
 
     if (!this.codeTester || typeof this.codeTester.getScore !== 'function') {
@@ -1831,10 +1347,8 @@ export default class CodeQuestion extends H5P.Question {
     this.resetStopSignal();
     this.codeTester?.reset?.();
     this.codeContainer?.reset?.();
-    this.selectedChoices.clear();
     this.answerGiven = false;
-    this.setMultipleChoiceLocked(false);
-    this.clearMultipleChoiceFeedback();
+    this.multipleChoiceMode.reset();
     this.getContainer()
       ?.querySelectorAll?.('.codequestion-multiple-choice input')
       ?.forEach((input) => {
@@ -1842,10 +1356,7 @@ export default class CodeQuestion extends H5P.Question {
       });
 
     if (this.isSortQuestion()) {
-      this.currentSortOrder = this.buildSortDisplayOrder(this.getCorrectSortItemIds());
-      this.setSortLocked(false);
-      this.clearSortFeedback();
-      this.reorderSortListDOM();
+      this.sortItemsMode.reset();
     }
 
     this.resizeActionHandler();
