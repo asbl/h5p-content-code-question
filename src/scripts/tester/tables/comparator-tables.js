@@ -52,7 +52,7 @@ export default class TablesComparator {
    *     columns: Array<string>,
    *     values: Array<Array<any>>
    *   }
-   *  @typedef {Object} TableComparisonResult
+   *  @typedef {object} TableComparisonResult
    *  @property {boolean} identical - True if tables are fully identical.
    *  @property {boolean[]} rowMatches - Per-row match status.
    *  @property {boolean[]} colMatches - Per-column match status.

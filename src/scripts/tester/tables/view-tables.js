@@ -249,7 +249,7 @@ export default class TablesView extends TestCaseView {
    * Format a table as HTML with highlights for differences.
    * @param {Array<object>} tableArray - table array
    * @param {object} comparison - comparison object from comparator
-   * @param {string} [role='expected'] - Whether the table is the expected or learner answer.
+   * @param {string} [role] - Whether the table is the expected or learner answer.
    * @returns {string} Formatted HTML table.
    */
   formatTable(tableArray, comparison, role = 'expected') {
