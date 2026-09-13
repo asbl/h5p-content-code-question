@@ -500,7 +500,7 @@ export default class CodeQuestion extends H5P.Question {
     def.description['en-US'] = this.getDescription();
 
     if (this.isMultipleChoiceQuestion()) {
-      def.choices = this.multipleChoice.choices.map((choice) => ({
+      def.choices = this.multipleChoiceMode.settings.choices.map((choice) => ({
         id: choice.id,
         description: {
           [this.getCodingLanguage()]: choice.text,
@@ -510,7 +510,7 @@ export default class CodeQuestion extends H5P.Question {
     }
 
     if (this.isSortQuestion()) {
-      def.choices = this.sortQuestion.items.map((item) => ({
+      def.choices = this.sortItemsMode.settings.items.map((item) => ({
         id: item.id,
         description: {
           [this.getCodingLanguage()]: item.text,

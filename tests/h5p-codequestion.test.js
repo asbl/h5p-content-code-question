@@ -1135,6 +1135,49 @@ describe('CodeQuestion', () => {
     });
   });
 
+  it('builds xAPI choices/items for subclasses without relying on the multipleChoice/sortQuestion compat getters', () => {
+    // Content types like H5P.PythonQuestion extend CodeQuestion across a
+    // library boundary. Depending on the host's build/inheritance setup,
+    // the `multipleChoice`/`sortQuestion` compatibility getters (added for
+    // external callers, see the getter block below getxAPIDefinition) are
+    // not guaranteed to resolve on such subclasses, so getxAPIDefinition
+    // must read multipleChoiceMode/sortItemsMode directly instead. Simulate
+    // that failure mode explicitly rather than relying on it happening to
+    // reproduce under Node's native class semantics.
+    class SubclassQuestion extends CodeQuestion {}
+    Object.defineProperty(SubclassQuestion.prototype, 'multipleChoice', { get: () => undefined, configurable: true });
+    Object.defineProperty(SubclassQuestion.prototype, 'sortQuestion', { get: () => undefined, configurable: true });
+
+    const multipleChoiceQuestion = new SubclassQuestion({
+      gradingSettings: {
+        gradingMethod: 'multipleChoice',
+        multipleChoice: {
+          choices: [
+            { text: 'A', correct: true },
+            { text: 'B', correct: false },
+          ],
+        },
+      },
+    }, 1);
+
+    expect(multipleChoiceQuestion.getxAPIDefinition()).toMatchObject({
+      choices: [{ id: 'choice_0' }, { id: 'choice_1' }],
+    });
+
+    const sortQuestion = new SubclassQuestion({
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [{ text: 'First' }, { text: 'Second' }],
+        },
+      },
+    }, 1);
+
+    expect(sortQuestion.getxAPIDefinition()).toMatchObject({
+      choices: [{ id: 'item_0' }, { id: 'item_1' }],
+    });
+  });
+
   it('adds a hidden retry button and swaps it in after checking a multiple choice answer', async () => {
     const question = new CodeQuestion({
       gradingSettings: {
