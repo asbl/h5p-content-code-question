@@ -1292,22 +1292,22 @@ export default class CodeQuestion extends H5P.Question {
   }
 
   getScore() {
+    let score;
     if (this.isMultipleChoiceQuestion()) {
-      return this.multipleChoiceMode.hasCorrectSelection() ? this.maxScore : 0;
+      score = this.multipleChoiceMode.hasCorrectSelection() ? this.maxScore : 0;
+    }
+    else if (this.isSortQuestion()) {
+      score = this.sortItemsMode.hasCorrectOrder() ? this.maxScore : 0;
+    }
+    else {
+      if (!this.codeTester || typeof this.codeTester.getScore !== 'function') {
+        return 0;
+      }
+      score = this.codeTester.getScore() * 2;
     }
 
-    if (this.isSortQuestion()) {
-      return this.sortItemsMode.hasCorrectOrder() ? this.maxScore : 0;
-    }
-
-    if (!this.codeTester || typeof this.codeTester.getScore !== 'function') {
-      return 0;
-    }
-
-    let score = this.codeTester.getScore() * 2;
     if (this.isLateSubmission()) {
-      // After due date maximum of 1 point
-      score = Math.min(score, 1);
+      score = Math.min(score, this.maxScore / 2);
     }
     return Math.min(score, this.maxScore);
   }

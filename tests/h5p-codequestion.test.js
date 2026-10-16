@@ -69,6 +69,65 @@ describe('CodeQuestion', () => {
     expect(mocks.createTester).not.toHaveBeenCalled();
   });
 
+  describe.each(['multipleChoice', 'sortItems', 'ioTestCases'])('deadline scoring for %s', (gradingMethod) => {
+    const createQuestion = (dueDateGroup) => {
+      const question = new CodeQuestion({
+        gradingSettings: {
+          gradingMethod,
+          dueDateGroup,
+          multipleChoice: {
+            choices: [
+              { text: 'Wrong', correct: false },
+              { text: 'Correct', correct: true },
+            ],
+          },
+          sortItems: {
+            items: [{ text: 'First' }, { text: 'Second' }],
+          },
+        },
+      }, 1);
+      question.selectedChoices.add('choice_1');
+      question.currentSortOrder = ['item_0', 'item_1'];
+      question.codeTester?.getScore.mockReturnValue(1);
+      return question;
+    };
+
+    it.each([
+      ['2026-10-23T11:59:59', true, '2026-10-23T12:00:00', 1],
+      ['2026-10-23T12:00:00', true, '2026-10-23T12:00:00', 1],
+      ['2026-10-23T12:00:01', true, '2026-10-23T12:00:00', 0.5],
+      ['2026-10-23T12:00:01', false, '2026-10-23T12:00:00', 1],
+      ['2026-10-23T12:00:01', true, undefined, 1],
+    ])('scores at %s with enabled=%s and deadline=%s', (now, enableDueDate, duedate, fraction) => {
+      vi.useFakeTimers();
+      try {
+        vi.setSystemTime(new Date(now));
+        const question = createQuestion({ enableDueDate, duedate });
+
+        expect(question.getScore()).toBe(question.getMaxScore() * fraction);
+
+        question.selectedChoices.clear();
+        question.currentSortOrder = ['item_1', 'item_0'];
+        question.codeTester?.getScore.mockReturnValue(0);
+
+        expect(question.getScore()).toBe(0);
+      }
+      finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  it('keeps partial code scores below the late-submission cap', () => {
+    const question = new CodeQuestion({
+      gradingSettings: { gradingMethod: 'ioTestCases' },
+    }, 1);
+    vi.spyOn(question, 'isLateSubmission').mockReturnValue(true);
+    question.codeTester.getScore.mockReturnValue(0.25);
+
+    expect(question.getScore()).toBe(0.5);
+  });
+
   it('disables grading safely if the grading method is unsupported', () => {
     mocks.createTester.mockReturnValueOnce(null);
 
