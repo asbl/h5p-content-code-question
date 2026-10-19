@@ -145,10 +145,54 @@ describe('CodeTester core edge cases', () => {
         requireObjectInstantiation: false,
         requireInheritance: false,
         forbidInheritance: false,
+        requireParameterAnnotations: false,
+        requireReturnAnnotation: false,
+        requiredTypedMethods: [{ className: 'Team', methodName: '', parameters: [{ name: 'amount', type: 'float' }] }],
+        requiredPrivateAttributes: [{ className: 'Team', attributeName: '' }],
+        requiredProperties: [{ className: 'Team', attributeName: '', requireSetter: true }],
+        protectedAttributeNames: '  ',
       },
     );
 
     expect(tester.hasAlgorithmConstraints()).toBe(false);
+  });
+
+  it('activates on the new type-hint and encapsulation constraint fields', () => {
+    const typedMethodTester = new TestCodeTester(
+      [{ inputs: [] }], 'functionTests', vi.fn(), vi.fn(), {}, null, false,
+      null, null, { requiredTypedMethods: [{ className: 'Team', methodName: 'deposit' }] },
+    );
+    expect(typedMethodTester.hasAlgorithmConstraints()).toBe(true);
+
+    const privateAttributeTester = new TestCodeTester(
+      [{ inputs: [] }], 'functionTests', vi.fn(), vi.fn(), {}, null, false,
+      null, null, { requiredPrivateAttributes: [{ className: 'Team', attributeName: 'balance' }] },
+    );
+    expect(privateAttributeTester.hasAlgorithmConstraints()).toBe(true);
+
+    const propertyTester = new TestCodeTester(
+      [{ inputs: [] }], 'functionTests', vi.fn(), vi.fn(), {}, null, false,
+      null, null, { requiredProperties: [{ className: 'Team', attributeName: 'balance' }] },
+    );
+    expect(propertyTester.hasAlgorithmConstraints()).toBe(true);
+
+    const protectedAttributeTester = new TestCodeTester(
+      [{ inputs: [] }], 'functionTests', vi.fn(), vi.fn(), {}, null, false,
+      null, null, { protectedAttributeNames: 'balance' },
+    );
+    expect(protectedAttributeTester.hasAlgorithmConstraints()).toBe(true);
+
+    const parameterAnnotationTester = new TestCodeTester(
+      [{ inputs: [] }], 'functionTests', vi.fn(), vi.fn(), {}, null, false,
+      null, null, { requireParameterAnnotations: true },
+    );
+    expect(parameterAnnotationTester.hasAlgorithmConstraints()).toBe(true);
+
+    const returnAnnotationTester = new TestCodeTester(
+      [{ inputs: [] }], 'functionTests', vi.fn(), vi.fn(), {}, null, false,
+      null, null, { requireReturnAnnotation: true },
+    );
+    expect(returnAnnotationTester.hasAlgorithmConstraints()).toBe(true);
   });
 });
 

@@ -606,11 +606,32 @@ export default class CodeQuestion extends H5P.Question {
     }
   }
 
+  /**
+   * Looks up an H5P.Question button element. The buttons live in the
+   * question's button bar, a sibling of the content, so they are searched
+   * from the surrounding .h5p-question root.
+   * @param {string} id Button id as passed to addButton().
+   * @returns {HTMLElement|null} Button element, if rendered.
+   */
+  getQuestionButton(id) {
+    const root = this.parentDiv?.closest?.('.h5p-question') || this.getContainer();
+    return root?.querySelector?.(`.h5p-question-${id}`) || null;
+  }
+
   getCheckAnswerButton() {
-    return this.getContainer()?.querySelector?.('.h5p-question-check-answer') || null;
+    return this.getQuestionButton('check-answer');
   }
 
   setCheckAnswerBusyState(isBusy) {
+    this.isCheckingAnswer = isBusy;
+
+    // Resetting while tests run would grade and report code the learner
+    // has already discarded.
+    const resetButton = this.getQuestionButton('reset-task');
+    if (resetButton) {
+      resetButton.disabled = isBusy;
+    }
+
     const button = this.getCheckAnswerButton();
     if (!button) {
       return;
@@ -854,6 +875,16 @@ export default class CodeQuestion extends H5P.Question {
     return Object.keys(state).length > 0 ? state : undefined;
   }
 
+  /**
+   * H5P framework persistence hook. The H5P core (h5p.js) calls
+   * getCurrentState() for autosave and for saving on page unload;
+   * getState() holds the actual serialization logic.
+   * @returns {object|undefined} State object, or undefined when there is nothing to save.
+   */
+  getCurrentState() {
+    return this.getState();
+  }
+
   getL10n() {
     return this.l10n;
   }
@@ -898,23 +929,76 @@ export default class CodeQuestion extends H5P.Question {
       this.addButton('check-answer', this.l10n.checkAnswer, () =>
         this.checkAction(),
       );
-      if (this.params.behaviour?.enableRetry !== false) {
+      // Assignment tasks use the always-visible reset button instead of a
+      // retry button that only appears after checking.
+      if (this.params.behaviour?.enableRetry !== false && !this.isAssignment()) {
         this.addButton('retry', this.l10n.retry, () => this.resetTask(), false);
       }
     }
+    this.addResetButton();
+  }
+
+  /**
+   * Registers the always-visible reset button for tasks with an editor.
+   * Resetting restores the authored starting code and clears persisted
+   * learner state, so it is available before and after checking and also
+   * for tasks without grading. Because this discards all learner work, the
+   * click is guarded by a confirmation dialog.
+   * @returns {void}
+   */
+  addResetButton() {
+    if (!this.isAssignment()) {
+      return;
+    }
+    this.addButton('reset-task', this.l10n.resetTask, () => this.resetTaskFromButton(), true, {}, {
+      confirmationDialog: {
+        enable: true,
+        instance: this,
+        l10n: {
+          header: getCodeQuestionL10nValue(this.l10n, 'resetTaskConfirmHeader'),
+          body: getCodeQuestionL10nValue(this.l10n, 'resetTaskConfirmBody'),
+          cancelLabel: getCodeQuestionL10nValue(this.l10n, 'resetTaskConfirmCancel'),
+          confirmLabel: getCodeQuestionL10nValue(this.l10n, 'resetTaskConfirm'),
+        },
+      },
+    });
+  }
+
+  /**
+   * Click handler of the reset button. When retrying is disabled and the
+   * attempt has already been graded, only the workspace is reset so the
+   * button cannot be used to bypass the single-attempt setting.
+   * @returns {void}
+   */
+  resetTaskFromButton() {
+    if (this.isCheckingAnswer) {
+      return;
+    }
+
+    if (this.answerGiven && this.params.behaviour?.enableRetry === false) {
+      this.resetWorkspace();
+      this.resizeActionHandler();
+      return;
+    }
+
+    this.resetTask();
   }
 
   /**
    * Swaps the check-answer button for retry once an attempt has been
    * evaluated, so learners have a clear way back into the exercise.
+   * Assignment tasks keep the check button instead, so learners can fix
+   * their code and check again without resetting it.
    * @returns {void}
    */
   showRetryAfterCheck() {
-    if (this.hasCheckButton) {
+    const canRetry = this.params.behaviour?.enableRetry !== false;
+
+    if (this.hasCheckButton && !(this.isAssignment() && canRetry)) {
       this.hideButton('check-answer');
     }
 
-    if (this.params.behaviour?.enableRetry !== false) {
+    if (canRetry) {
       this.showButton('retry');
     }
   }
@@ -1120,16 +1204,15 @@ export default class CodeQuestion extends H5P.Question {
     else {
       const editorWrapper = document.createElement('div');
       const containerId = content.id || index;
+      // Saved learner work (including Blockly blocks) is restored via the
+      // workspace snapshot only. It must not be passed as content params,
+      // because those define the authored starting state a reset returns to.
       const savedState = this.extras?.previousState?.contentItemStates?.[containerId];
-      const savedWorkspaceState = savedState?.blocklyWorkspaceState;
-      const contentParams = savedWorkspaceState
-        ? { ...content, blocklyWorkspaceState: savedWorkspaceState }
-        : content;
       const factory = this.getContainerFactory(
         editorWrapper,
         this.getDecodedCode(content.code),
         false,
-        contentParams,
+        content,
       );
       const codeContainer = factory.create();
       this.applyContainerState(codeContainer, savedState);
@@ -1193,7 +1276,12 @@ export default class CodeQuestion extends H5P.Question {
   }
 
   renderButtonsAndTestCases() {
-    if (!this.gradingMethod) return;
+    if (!this.gradingMethod) {
+      // Without grading there is no check/retry flow, but the task can still
+      // be reset.
+      this.addResetButton();
+      return;
+    }
     this.addButtons();
     if (!this.isMultipleChoiceQuestion() && !this.isSortQuestion() && this.hasTestCaseArea) {
       this.parentDiv.append(this.codeTester.view.getDOM());
@@ -1332,21 +1420,8 @@ export default class CodeQuestion extends H5P.Question {
     if (this.hasCheckButton) this.showButton('check-answer');
     this.hideButton('retry');
 
-    const resetCode = this.getDecodedCode(this.defaultCode || '');
-
-    if (typeof this.codeContainer?.setCode === 'function') {
-      this.codeContainer.setCode(resetCode);
-    }
-    else if (this.codeContainer?.session && typeof this.codeContainer?.set_decoded_code === 'function') {
-      this.codeContainer.session.setValue(
-        this.codeContainer.set_decoded_code(this.defaultCode || ''),
-        -1,
-      );
-    }
-
-    this.resetStopSignal();
+    this.resetWorkspace();
     this.codeTester?.reset?.();
-    this.codeContainer?.reset?.();
     this.answerGiven = false;
     this.multipleChoiceMode.reset();
     this.getContainer()
@@ -1360,6 +1435,109 @@ export default class CodeQuestion extends H5P.Question {
     }
 
     this.resizeActionHandler();
+  }
+
+  /**
+   * Restores all editors to their authored starting state: stops running
+   * programs, resets the code, clears the console and discards persisted
+   * learner state. Grading state is left untouched.
+   * @returns {void}
+   */
+  resetWorkspace() {
+    this.stopRunningCode();
+    this.resetStopSignal();
+
+    this.resetCodeContainer(this.codeContainer, this.defaultCode || '');
+    this.codeContainers.forEach((container) => {
+      this.resetCodeContainer(container);
+    });
+
+    this.codeContainer?.reset?.();
+    this.clearPersistedState();
+  }
+
+  /**
+   * Stops programs that are still running in any editor, so they do not
+   * keep executing (and printing) the discarded code after a reset.
+   * Container stop() tears the runtime down directly, so the shared stop
+   * signal can be cleared afterwards for the next run.
+   * @returns {void}
+   */
+  stopRunningCode() {
+    [this.codeContainer, ...this.codeContainers.values()].forEach((container) => {
+      const stateManager = container?.getStateManager?.();
+      if (stateManager?.isRunning?.() || stateManager?.isPaused?.()) {
+        container.stop?.();
+      }
+    });
+  }
+
+  /**
+   * Restores a code container to its authored starting state. Prefers a full
+   * workspace snapshot reset (which also discards learner-added files) and
+   * falls back to replacing the entry-file code.
+   * @param {object} container - Code container to reset.
+   * @param {string|null} [fallbackCode] - Encoded starting code for the
+   *   fallback path; when null and no default snapshot exists, the container
+   *   is left untouched because its starting state is unknown.
+   * @returns {void}
+   */
+  resetCodeContainer(container, fallbackCode = null) {
+    const defaultSnapshot = container?.getDefaultWorkspaceSnapshot?.();
+
+    if (defaultSnapshot && typeof container?.setWorkspaceSnapshot === 'function') {
+      container.setWorkspaceSnapshot(defaultSnapshot);
+      return;
+    }
+
+    if (fallbackCode === null) {
+      return;
+    }
+
+    if (typeof container?.setCode === 'function') {
+      container.setCode(this.getDecodedCode(fallbackCode));
+    }
+    else if (container?.session && typeof container?.set_decoded_code === 'function') {
+      container.session.setValue(
+        container.set_decoded_code(fallbackCode),
+        -1,
+      );
+    }
+  }
+
+  /**
+   * Clears persisted learner state so a reset survives page reloads: the
+   * local workspace autosave is discarded immediately and the H5P-stored
+   * state is deleted when the host supports user data.
+   *
+   * Embedded in a parent content type (Question Set, Course Presentation,
+   * ...), the stored state belongs to the parent and also holds the other
+   * sub-contents' answers, so it must not be deleted. The parent's next
+   * autosave stores this instance's state, which is empty after the reset.
+   * @returns {void}
+   */
+  clearPersistedState() {
+    if (typeof this.codeContainer?.clearWorkspaceAutosave === 'function') {
+      Promise.resolve(this.codeContainer.clearWorkspaceAutosave()).catch(() => {
+        // Storage unavailable; nothing to discard.
+      });
+    }
+    else {
+      this.codeContainer?.scheduleWorkspaceAutosave?.();
+    }
+
+    if (this.subContentId || this.extras?.subContentId) {
+      return;
+    }
+
+    try {
+      if (typeof H5P?.deleteUserData === 'function') {
+        H5P.deleteUserData(this.contentId, 'state', 0);
+      }
+    }
+    catch {
+      // Hosts without user data storage keep no state to delete.
+    }
   }
 
   shouldStop() {

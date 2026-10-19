@@ -1,4 +1,4 @@
-import { getCodeQuestionL10nValue } from '../services/codequestion-l10n';
+import { getCodeQuestionL10nValue, tCodeQuestion } from '../services/codequestion-l10n';
 
 /**
  * Owns configuration, state, scoring and DOM rendering/interaction for the
@@ -9,6 +9,7 @@ import { getCodeQuestionL10nValue } from '../services/codequestion-l10n';
 export default class MultipleChoiceMode {
   constructor(question, rawSettings = {}, previousSelectedChoices) {
     this.question = question;
+    this.rawSettings = rawSettings;
     this.settings = this.normalizeSettings(rawSettings);
     this.selectedChoices = this.normalizeSelectedChoices(previousSelectedChoices);
     this.displayOrder = this.buildDisplayOrder();
@@ -27,8 +28,10 @@ export default class MultipleChoiceMode {
       }))
       .filter((choice) => choice.text.trim() !== '');
 
+    const hasSeveralCorrectChoices = choices.filter((choice) => choice.correct).length > 1;
+
     return {
-      allowMultiple: settings.allowMultiple === true,
+      allowMultiple: settings.allowMultiple === true || hasSeveralCorrectChoices,
       shuffleAnswers: settings.shuffleAnswers === true,
       choices,
     };
@@ -91,12 +94,11 @@ export default class MultipleChoiceMode {
       );
     }
 
-    if (!this.settings.allowMultiple && correctChoiceCount > 1) {
+    if (this.rawSettings.allowMultiple === false && correctChoiceCount > 1) {
       console.warn(
         'H5P.CodeQuestion: multiple choice grading marks several options as '
-        + 'correct, but "Allow multiple correct answers" is off. Only one '
-        + 'option can be selected, so this question can never be answered '
-        + 'correctly.',
+        + 'correct, but "Allow multiple correct answers" is off. The runtime '
+        + 'will use checkboxes so learners can still answer correctly.',
       );
     }
   }
@@ -128,6 +130,36 @@ export default class MultipleChoiceMode {
       .map((choice) => choice.id);
   }
 
+  /**
+   * Builds the hint telling the learner how many selected answers were
+   * correct. Only shown together with the feedback once an attempt has
+   * been checked, never before.
+   * @returns {string} Localized hint, e.g. "2 of 4 selected answers were correct."
+   */
+  getCorrectCountHint() {
+    const selectedChoiceIds = this.getSelectedChoiceIds();
+    const correctChoiceIds = this.getCorrectChoiceIds();
+
+    return tCodeQuestion(this.question.l10n, 'multipleChoiceCorrectCount', {
+      correct: selectedChoiceIds.filter((choiceId) => correctChoiceIds.includes(choiceId)).length,
+      total: selectedChoiceIds.length,
+      missing: correctChoiceIds.filter((choiceId) => !selectedChoiceIds.includes(choiceId)).length,
+    });
+  }
+
+  /**
+   * Shows/hides the correct-count hint that is rendered as part of the
+   * answer options but only revealed with the feedback.
+   * @param {boolean} visible True to show the hint.
+   * @returns {void}
+   */
+  setCorrectCountHintVisible(visible) {
+    const countHint = this.fieldset?.querySelector('.codequestion-multiple-choice__count');
+    if (countHint) {
+      countHint.hidden = !visible;
+    }
+  }
+
   hasCorrectSelection() {
     const selected = this.getSelectedChoiceIds();
     const correct = this.getCorrectChoiceIds();
@@ -145,6 +177,12 @@ export default class MultipleChoiceMode {
     legend.className = 'sr-only';
     legend.textContent = getCodeQuestionL10nValue(this.question.l10n, 'multipleChoiceAnswer');
     wrapper.append(legend);
+
+    const countHint = document.createElement('p');
+    countHint.className = 'codequestion-multiple-choice__count';
+    countHint.textContent = this.getCorrectCountHint();
+    countHint.hidden = true;
+    wrapper.append(countHint);
 
     this.getDisplayedChoices().forEach((choice, index) => {
       const option = document.createElement('label');
@@ -166,10 +204,7 @@ export default class MultipleChoiceMode {
       const markdown = new H5P.Markdown(choice.text, this.question.getMarkdownOptions());
       this.question.appendResolvedMarkdown(body, markdown);
 
-      const state = document.createElement('span');
-      state.className = 'codequestion-choice__state sr-only';
-
-      option.append(input, marker, body, state);
+      option.append(input, marker, body);
       wrapper.append(option);
     });
 
@@ -191,9 +226,10 @@ export default class MultipleChoiceMode {
   }
 
   /**
-   * Marks the currently selected option(s) as correct or incorrect.
-   * Unselected options are intentionally left unmarked so this does not
-   * reveal the solution to unanswered/wrong choices.
+   * Reveals the correct-count hint once an attempt has been checked.
+   * Individual options are intentionally never marked as correct or
+   * incorrect: on a failed attempt, marking the selected options would
+   * disclose the answer key (e.g. after selecting every option).
    * @returns {void}
    */
   applyFeedback() {
@@ -201,47 +237,19 @@ export default class MultipleChoiceMode {
       return;
     }
 
-    const correctIds = new Set(this.getCorrectChoiceIds());
-
-    this.fieldset.querySelectorAll('.codequestion-choice').forEach((option) => {
-      const input = option.querySelector('input');
-      const state = option.querySelector('.codequestion-choice__state');
-
-      option.classList.remove('codequestion-choice--correct', 'codequestion-choice--incorrect');
-      if (state) {
-        state.textContent = '';
-      }
-
-      if (!input?.checked) {
-        return;
-      }
-
-      const isCorrect = correctIds.has(input.value);
-      option.classList.add(
-        isCorrect ? 'codequestion-choice--correct' : 'codequestion-choice--incorrect',
-      );
-      if (state) {
-        state.textContent = getCodeQuestionL10nValue(
-          this.question.l10n,
-          isCorrect ? 'choiceCorrect' : 'choiceIncorrect',
-        );
-      }
-    });
+    const countHint = this.fieldset.querySelector('.codequestion-multiple-choice__count');
+    if (countHint) {
+      countHint.textContent = this.getCorrectCountHint();
+    }
+    this.setCorrectCountHintVisible(true);
   }
 
   /**
-   * Removes any correct/incorrect markup from the options, e.g. before a
-   * retry.
+   * Hides the correct-count hint again, e.g. before a retry.
    * @returns {void}
    */
   clearFeedback() {
-    this.fieldset?.querySelectorAll('.codequestion-choice').forEach((option) => {
-      option.classList.remove('codequestion-choice--correct', 'codequestion-choice--incorrect');
-      const state = option.querySelector('.codequestion-choice__state');
-      if (state) {
-        state.textContent = '';
-      }
-    });
+    this.setCorrectCountHintVisible(false);
   }
 
   /**

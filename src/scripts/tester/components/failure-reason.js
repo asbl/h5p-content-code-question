@@ -36,8 +36,17 @@ function translateConstraintViolation(l10n, violation) {
     ['Required class: ', 'constraintRequiredClass'],
     ['Forbidden class: ', 'constraintForbiddenClass'],
     ['Required method parameters: ', 'constraintRequiredMethodParameters'],
+    ['Required typed method: ', 'constraintRequiredTypedMethod'],
     ['Required method: ', 'constraintRequiredMethod'],
     ['Required instance attribute: ', 'constraintRequiredAttribute'],
+    ['Required typed attribute: ', 'constraintRequiredTypedAttribute'],
+    ['Missing parameter type hint: ', 'constraintParameterAnnotationMissing'],
+    ['Missing return type hint: ', 'constraintReturnAnnotationMissing'],
+    ['Required private attribute: ', 'constraintRequiredPrivateAttribute'],
+    ['Attribute must not also be public: ', 'constraintAttributeMustNotBePublic'],
+    ['Required property getter: ', 'constraintRequiredPropertyGetter'],
+    ['Required property setter: ', 'constraintRequiredPropertySetter'],
+    ['External access to protected attribute: ', 'constraintExternalAttributeAccess'],
   ].find(([prefix]) => text.startsWith(prefix));
 
   if (prefixed) {
@@ -85,6 +94,8 @@ function describeConfiguredConstraints(l10n, constraints = {}) {
     ['requireObjectInstantiation', 'constraintObjectInstantiationRequired'],
     ['requireInheritance', 'constraintInheritanceRequired'],
     ['forbidInheritance', 'constraintInheritanceForbidden'],
+    ['requireParameterAnnotations', 'constraintParameterAnnotationsRequired'],
+    ['requireReturnAnnotation', 'constraintReturnAnnotationRequired'],
   ].forEach(([field, key]) => {
     if (constraints[field] === true) {
       descriptions.push(describeConfiguredConstraint(l10n, key));
@@ -126,6 +137,34 @@ function describeConfiguredConstraints(l10n, constraints = {}) {
         parameters.length ? `${label}(${parameters.join(', ')})` : label,
       ));
     });
+
+  (Array.isArray(constraints.requiredTypedMethods) ? constraints.requiredTypedMethods : [])
+    .forEach((method) => {
+      const methodName = String(method?.methodName ?? method?.name ?? method ?? '').trim();
+      if (!methodName) return;
+      const className = String(method?.className || '').trim();
+      const label = `${className ? `${className}.` : ''}${methodName}`;
+      descriptions.push(describeConfiguredConstraint(l10n, 'constraintRequiredTypedMethod', label));
+    });
+
+  normalizeList(constraints.requiredPrivateAttributes, 'attributeName')
+    .forEach((value) => descriptions.push(describeConfiguredConstraint(l10n, 'constraintRequiredPrivateAttribute', value)));
+
+  (Array.isArray(constraints.requiredProperties) ? constraints.requiredProperties : [])
+    .forEach((property) => {
+      const attributeName = String(property?.attributeName ?? property?.name ?? property ?? '').trim();
+      if (!attributeName) return;
+      const className = String(property?.className || '').trim();
+      const label = `${className ? `${className}.` : ''}${attributeName}`;
+      descriptions.push(describeConfiguredConstraint(
+        l10n,
+        property?.requireSetter === true ? 'constraintRequiredPropertySetter' : 'constraintRequiredPropertyGetter',
+        label,
+      ));
+    });
+
+  normalizeList(constraints.protectedAttributeNames)
+    .forEach((value) => descriptions.push(describeConfiguredConstraint(l10n, 'constraintExternalAttributeAccess', value)));
 
   (Array.isArray(constraints.requiredAttributes) ? constraints.requiredAttributes : [])
     .forEach((attribute) => {

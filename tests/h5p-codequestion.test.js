@@ -678,7 +678,7 @@ describe('CodeQuestion', () => {
     expect(question.getState()).toBeUndefined();
   });
 
-  it('keeps legacy inline Blockly restore while applying workspace snapshots with precedence', () => {
+  it('restores inline editors from workspace snapshots without altering their authored params', () => {
     const question = new CodeQuestion({}, 1, {
       previousState: {
         contentItemStates: {
@@ -722,9 +722,11 @@ describe('CodeQuestion', () => {
       expect.any(HTMLElement),
       'print("default")',
       false,
-      expect.objectContaining({
-        blocklyWorkspaceState: { legacy: true },
-      }),
+      {
+        id: 'inline',
+        type: 'code',
+        code: 'print("default")',
+      },
     );
     expect(question.applyContainerState).toHaveBeenCalledWith(
       codeContainer,
@@ -1115,6 +1117,66 @@ describe('CodeQuestion', () => {
     }
   });
 
+  it('shows how many selected multiple choice answers were correct only after an attempt was checked', () => {
+    const originalMarkdown = H5P.Markdown;
+    H5P.Markdown = class MarkdownMock {
+      constructor(markdown) {
+        this.markdown = markdown;
+      }
+
+      getMarkdownDiv() {
+        const div = document.createElement('div');
+        div.textContent = this.markdown;
+        return div;
+      }
+    };
+
+    const question = new CodeQuestion({
+      contentType: 'text_only',
+      gradingSettings: {
+        gradingMethod: 'multipleChoice',
+        multipleChoice: {
+          allowMultiple: true,
+          choices: [
+            { text: 'A', correct: true },
+            { text: 'B', correct: false },
+            { text: 'C', correct: false },
+            { text: 'D', correct: true },
+          ],
+        },
+      },
+    }, 1);
+    question.setContent = vi.fn();
+    question.addButton = vi.fn();
+
+    try {
+      question.registerDomElements();
+
+      const countHint = question.parentDiv.querySelector('.codequestion-multiple-choice__count');
+      expect(countHint?.textContent).toBe(
+        '0 of your 0 selected answers were correct. 2 correct answers are missing.',
+      );
+      expect(countHint?.hidden).toBe(true);
+
+      question.selectedChoices.add('choice_0');
+      question.selectedChoices.add('choice_1');
+      question.selectedChoices.add('choice_3');
+      question.multipleChoiceMode.applyFeedback();
+
+      expect(countHint?.textContent).toBe(
+        '2 of your 3 selected answers were correct. 0 correct answers are missing.',
+      );
+      expect(countHint?.hidden).toBe(false);
+
+      question.multipleChoiceMode.reset();
+
+      expect(countHint?.hidden).toBe(true);
+    }
+    finally {
+      H5P.Markdown = originalMarkdown;
+    }
+  });
+
   it('persists multiple choice state and exposes choice xAPI metadata', () => {
     const question = new CodeQuestion({
       gradingSettings: {
@@ -1239,6 +1301,7 @@ describe('CodeQuestion', () => {
 
   it('adds a hidden retry button and swaps it in after checking a multiple choice answer', async () => {
     const question = new CodeQuestion({
+      contentType: 'text_only',
       gradingSettings: {
         gradingMethod: 'multipleChoice',
         multipleChoice: {
@@ -1274,6 +1337,7 @@ describe('CodeQuestion', () => {
 
   it('does not add a retry button when behaviour.enableRetry is disabled', () => {
     const question = new CodeQuestion({
+      contentType: 'text_only',
       behaviour: { enableRetry: false },
       gradingSettings: {
         gradingMethod: 'multipleChoice',
@@ -1298,7 +1362,256 @@ describe('CodeQuestion', () => {
     );
   });
 
-  it('marks selected multiple choice options as correct/incorrect and locks them after checking', async () => {
+  it('adds a visible reset button for assignment tasks instead of a hidden retry button', () => {
+    const question = new CodeQuestion({
+      editorSettings: { startingCode: 'print(1)' },
+      gradingSettings: {
+        gradingMethod: 'ioTestCases',
+        targetCode: 'print(1)',
+        testCases: [{ input: '', expectedOutput: '1' }],
+      },
+    }, 1);
+
+    const addButtonCalls = [];
+    question.addButton = vi.fn((id, text, clicked, visible) => {
+      addButtonCalls.push({ id, visible });
+    });
+
+    question.addButtons();
+
+    expect(addButtonCalls).toContainEqual({ id: 'reset-task', visible: true });
+    expect(addButtonCalls).not.toContainEqual(expect.objectContaining({ id: 'retry' }));
+  });
+
+  it('adds a reset button for assignment tasks without grading', () => {
+    const question = new CodeQuestion({
+      editorSettings: { startingCode: 'print(1)' },
+    }, 1);
+
+    const addButtonCalls = [];
+    question.addButton = vi.fn((id, text, clicked, visible) => {
+      addButtonCalls.push({ id, visible });
+    });
+
+    question.renderButtonsAndTestCases();
+
+    expect(addButtonCalls).toContainEqual({ id: 'reset-task', visible: true });
+  });
+
+  it('guards the reset button with a confirmation dialog', () => {
+    const question = new CodeQuestion({
+      editorSettings: { startingCode: 'print(1)' },
+    }, 1);
+
+    question.addButton = vi.fn();
+    question.renderButtonsAndTestCases();
+
+    const resetCall = question.addButton.mock.calls.find(([id]) => id === 'reset-task');
+    const confirmationDialog = resetCall?.[5]?.confirmationDialog;
+
+    expect(confirmationDialog?.enable).toBe(true);
+    expect(confirmationDialog?.instance).toBe(question);
+    expect(confirmationDialog?.l10n).toEqual({
+      header: 'Reset task?',
+      body: expect.stringContaining('cannot be undone'),
+      cancelLabel: 'Cancel',
+      confirmLabel: 'Reset',
+    });
+  });
+
+  it('keeps the reset button when behaviour.enableRetry is disabled', () => {
+    const question = new CodeQuestion({
+      behaviour: { enableRetry: false },
+      editorSettings: { startingCode: 'print(1)' },
+    }, 1);
+
+    question.addButton = vi.fn();
+
+    question.renderButtonsAndTestCases();
+
+    expect(question.addButton).toHaveBeenCalledWith(
+      'reset-task',
+      expect.anything(),
+      expect.any(Function),
+      true,
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('only resets the workspace after a graded attempt when retrying is disabled', () => {
+    const question = new CodeQuestion({
+      behaviour: { enableRetry: false },
+      editorSettings: { startingCode: 'print(1)' },
+    }, 1);
+
+    question.answerGiven = true;
+    question.resetWorkspace = vi.fn();
+    question.resetTask = vi.fn();
+    question.resizeActionHandler = vi.fn();
+
+    question.resetTaskFromButton();
+
+    expect(question.resetWorkspace).toHaveBeenCalledTimes(1);
+    expect(question.resetTask).not.toHaveBeenCalled();
+    expect(question.answerGiven).toBe(true);
+  });
+
+  it('keeps the check button visible after checking an assignment task', () => {
+    const question = new CodeQuestion({
+      editorSettings: { startingCode: 'print(1)' },
+      gradingSettings: {
+        gradingMethod: 'ioTestCases',
+        targetCode: 'print(1)',
+        testCases: [{ input: '', expectedOutput: '1' }],
+      },
+    }, 1);
+
+    question.hideButton = vi.fn();
+    question.showButton = vi.fn();
+
+    question.showRetryAfterCheck();
+
+    expect(question.hideButton).not.toHaveBeenCalledWith('check-answer');
+  });
+
+  it('hides the check button after checking an assignment task when retrying is disabled', () => {
+    const question = new CodeQuestion({
+      behaviour: { enableRetry: false },
+      editorSettings: { startingCode: 'print(1)' },
+      gradingSettings: {
+        gradingMethod: 'ioTestCases',
+        targetCode: 'print(1)',
+        testCases: [{ input: '', expectedOutput: '1' }],
+      },
+    }, 1);
+
+    question.hideButton = vi.fn();
+    question.showButton = vi.fn();
+
+    question.showRetryAfterCheck();
+
+    expect(question.hideButton).toHaveBeenCalledWith('check-answer');
+  });
+
+  it('disables the reset button and ignores reset clicks while an answer is being checked', () => {
+    const question = new CodeQuestion({}, 1);
+    const root = document.createElement('div');
+    root.className = 'h5p-question';
+    const content = document.createElement('div');
+    const buttons = document.createElement('div');
+    const checkButton = document.createElement('button');
+    checkButton.className = 'h5p-question-check-answer';
+    const resetButton = document.createElement('button');
+    resetButton.className = 'h5p-question-reset-task';
+    buttons.append(checkButton, resetButton);
+    content.append(question.parentDiv);
+    root.append(content, buttons);
+
+    question.resetTask = vi.fn();
+
+    question.setCheckAnswerBusyState(true);
+    question.resetTaskFromButton();
+
+    expect(checkButton.disabled).toBe(true);
+    expect(resetButton.disabled).toBe(true);
+    expect(question.resetTask).not.toHaveBeenCalled();
+
+    question.setCheckAnswerBusyState(false);
+    question.resetTaskFromButton();
+
+    expect(resetButton.disabled).toBe(false);
+    expect(question.resetTask).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops running programs in all editors before resetting', () => {
+    const question = new CodeQuestion({}, 1);
+    const running = { isRunning: () => true, isPaused: () => false };
+    const idle = { isRunning: () => false, isPaused: () => false };
+
+    question.removeFeedback = vi.fn();
+    question.showButton = vi.fn();
+    question.hideButton = vi.fn();
+    question.resizeActionHandler = vi.fn();
+    question.codeContainer = {
+      getStateManager: () => running,
+      stop: vi.fn(),
+      setCode: vi.fn(),
+    };
+    const inlineContainer = {
+      getStateManager: () => idle,
+      stop: vi.fn(),
+    };
+    question.codeContainers.set('inline', inlineContainer);
+
+    question.resetTask();
+
+    expect(question.codeContainer.stop).toHaveBeenCalledTimes(1);
+    expect(inlineContainer.stop).not.toHaveBeenCalled();
+  });
+
+  it('does not delete the parent state when embedded as sub-content', () => {
+    const question = new CodeQuestion({}, 1);
+    const deleteUserData = vi.fn();
+    globalThis.H5P.deleteUserData = deleteUserData;
+    question.subContentId = 'sub-1';
+    question.codeContainer = { clearWorkspaceAutosave: vi.fn(() => Promise.resolve()) };
+
+    try {
+      question.clearPersistedState();
+
+      expect(question.codeContainer.clearWorkspaceAutosave).toHaveBeenCalledTimes(1);
+      expect(deleteUserData).not.toHaveBeenCalled();
+    }
+    finally {
+      delete globalThis.H5P.deleteUserData;
+    }
+  });
+
+  it('restores the default workspace snapshot and clears persisted state in resetTask', () => {
+    const question = new CodeQuestion({}, 1);
+    const defaultSnapshot = { files: [{ name: 'main.py', code: 'print(1)' }] };
+    const setWorkspaceSnapshot = vi.fn();
+    const scheduleWorkspaceAutosave = vi.fn();
+    const deleteUserData = vi.fn();
+    globalThis.H5P.deleteUserData = deleteUserData;
+
+    question.removeFeedback = vi.fn();
+    question.showButton = vi.fn();
+    question.hideButton = vi.fn();
+    question.resizeActionHandler = vi.fn();
+    question.codeTester = { reset: vi.fn() };
+    question.codeContainer = {
+      getDefaultWorkspaceSnapshot: vi.fn(() => defaultSnapshot),
+      setWorkspaceSnapshot,
+      setCode: vi.fn(),
+      reset: vi.fn(),
+      scheduleWorkspaceAutosave,
+    };
+
+    try {
+      question.resetTask();
+
+      expect(setWorkspaceSnapshot).toHaveBeenCalledWith(defaultSnapshot);
+      expect(question.codeContainer.setCode).not.toHaveBeenCalled();
+      expect(scheduleWorkspaceAutosave).toHaveBeenCalledTimes(1);
+      expect(deleteUserData).toHaveBeenCalledWith(1, 'state', 0);
+    }
+    finally {
+      delete globalThis.H5P.deleteUserData;
+    }
+  });
+
+  it('exposes getState as the H5P framework hook getCurrentState', () => {
+    const question = new CodeQuestion({}, 1);
+    const state = { assignmentState: { workspaceSnapshot: { files: [] } } };
+    question.getState = vi.fn(() => state);
+
+    expect(question.getCurrentState()).toBe(state);
+    expect(question.getState).toHaveBeenCalledTimes(1);
+  });
+
+  it('locks multiple choice options after checking without marking correct/incorrect', async () => {
     const originalMarkdown = H5P.Markdown;
     H5P.Markdown = class MarkdownMock {
       constructor(markdown) {
@@ -1348,15 +1661,19 @@ describe('CodeQuestion', () => {
 
       await question.checkAction();
 
-      expect(options[0].classList.contains('codequestion-choice--correct')).toBe(true);
-      expect(options[1].classList.contains('codequestion-choice--incorrect')).toBe(true);
+      // Individual options are never marked as correct/incorrect so a
+      // failed attempt cannot disclose the answer key; only the count
+      // hint is revealed.
+      const countHint = question.parentDiv.querySelector('.codequestion-multiple-choice__count');
+      expect(options[0].classList.contains('codequestion-choice--correct')).toBe(false);
+      expect(options[1].classList.contains('codequestion-choice--incorrect')).toBe(false);
+      expect(countHint?.hidden).toBe(false);
       expect(question.multipleChoiceFieldset.disabled).toBe(true);
 
       question.resetTask();
 
       expect(question.multipleChoiceFieldset.disabled).toBe(false);
-      expect(options[0].classList.contains('codequestion-choice--correct')).toBe(false);
-      expect(options[1].classList.contains('codequestion-choice--incorrect')).toBe(false);
+      expect(countHint?.hidden).toBe(true);
     }
     finally {
       H5P.Markdown = originalMarkdown;
@@ -1429,11 +1746,24 @@ describe('CodeQuestion', () => {
     }
   });
 
-  it('warns when a single-answer multiple choice question marks several options as correct', () => {
+  it('uses checkboxes when several choices are correct even if allowMultiple is false', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const originalMarkdown = H5P.Markdown;
+    H5P.Markdown = class MarkdownMock {
+      constructor(markdown) {
+        this.markdown = markdown;
+      }
+
+      getMarkdownDiv() {
+        const div = document.createElement('div');
+        div.textContent = this.markdown;
+        return div;
+      }
+    };
 
     try {
       const question = new CodeQuestion({
+        contentType: 'text_only',
         gradingSettings: {
           gradingMethod: 'multipleChoice',
           multipleChoice: {
@@ -1445,13 +1775,30 @@ describe('CodeQuestion', () => {
           },
         },
       }, 1);
+      question.setContent = vi.fn();
+      question.addButton = vi.fn();
 
       expect(question.isMultipleChoiceQuestion()).toBe(true);
+      expect(question.multipleChoice.allowMultiple).toBe(true);
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('Allow multiple correct answers'),
       );
+
+      question.registerDomElements();
+
+      const inputs = question.parentDiv.querySelectorAll('.codequestion-multiple-choice input');
+      expect([...inputs].map((input) => input.type)).toEqual(['checkbox', 'checkbox']);
+
+      inputs[0].checked = true;
+      inputs[0].dispatchEvent(new Event('change'));
+      inputs[1].checked = true;
+      inputs[1].dispatchEvent(new Event('change'));
+
+      expect(question.getScore()).toBe(1);
+      expect(question.success()).toBe(true);
     }
     finally {
+      H5P.Markdown = originalMarkdown;
       warnSpy.mockRestore();
     }
   });

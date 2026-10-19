@@ -449,6 +449,54 @@ describe('CodeQuestionContainer load workflow', () => {
     expect(instance.lastExecutionError).toBeNull();
   });
 
+  it('keeps structured runtime error details for popup text and line jumps', () => {
+    const instance = Object.create(CodeQuestionContainer.prototype);
+    const containerDiv = document.createElement('div');
+    instance.getContainerDiv = vi.fn(() => containerDiv);
+    instance.l10n = {};
+
+    instance.setExecutionStatus('error', {
+      error: {
+        message: 'SyntaxError: expected ":"',
+        diagnostics: ['File "<exec>", line 4'],
+        lineno: 4,
+      },
+    });
+
+    expect(instance.workspaceFeedback.errorMessage.textContent).toBe('SyntaxError: expected ":"\nFile "<exec>", line 4');
+    expect(instance.lastExecutionError).toEqual({
+      message: 'SyntaxError: expected ":"\nFile "<exec>", line 4',
+      line: 4,
+    });
+    expect(instance.workspaceFeedback.errorAction.hidden).toBe(false);
+  });
+
+  it('extracts Python traceback line numbers from legacy string errors', () => {
+    const instance = Object.create(CodeQuestionContainer.prototype);
+
+    expect(instance.normalizeExecutionError(
+      'Traceback (most recent call last):\n  File "<exec>", line 7, in <module>\nSyntaxError: invalid syntax',
+    )).toEqual({
+      message: 'Traceback (most recent call last):\n  File "<exec>", line 7, in <module>\nSyntaxError: invalid syntax',
+      line: 7,
+    });
+  });
+
+  it('uses the editor focusLine helper when jumping to an execution error', () => {
+    const instance = Object.create(CodeQuestionContainer.prototype);
+    const focusLine = vi.fn();
+    instance.lastExecutionError = { message: 'boom', line: 6 };
+    instance.showCodePage = vi.fn();
+    instance.getEditorManager = vi.fn(() => ({
+      getActiveEditorInstance: () => ({ focusLine }),
+    }));
+
+    instance.focusErrorLine();
+
+    expect(instance.showCodePage).toHaveBeenCalledTimes(1);
+    expect(focusLine).toHaveBeenCalledWith(6);
+  });
+
   it('orders images and sounds buttons before save and load', () => {
     const instance = Object.create(CodeQuestionContainer.prototype);
 

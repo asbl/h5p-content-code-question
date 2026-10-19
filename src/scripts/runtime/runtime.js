@@ -1,5 +1,6 @@
 import ConsoleRuntimeManager from './runtime-manager-console';
 import { logCodeQuestionDiagnostic } from '../services/codequestion-diagnostics';
+import { formatRuntimeError } from '../../../../H5P.LibCodeTools-6.0/src/scripts/runtime/runtime-result';
 
 export class Runtime {
 
@@ -125,7 +126,7 @@ export class Runtime {
    */
   onError(error) {
     logCodeQuestionDiagnostic(this.options, 'Error while executing code:\n', error);
-    this._consoleManager.write(error, '!>');
+    this._consoleManager.write(formatRuntimeError(error), '!>');
     this.codeContainer?.setExecutionStatus?.('error', { error });
     this.codeContainer?.getStateManager?.().stop?.();
 
@@ -172,6 +173,7 @@ export class Runtime {
 
   async start(codeContainer) {
     this.setup(codeContainer); //has to be first, because this setups this.codeContainer
+    this.codeContainer?.getStateManager?.().start?.();
     this.reset();
     this.init();
     await this.prepareForRun();

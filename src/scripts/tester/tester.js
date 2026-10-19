@@ -202,7 +202,13 @@ export default class CodeTester {
       || constraints.requireConstructor === true
       || constraints.requireObjectInstantiation === true
       || constraints.requireInheritance === true
-      || constraints.forbidInheritance === true;
+      || constraints.forbidInheritance === true
+      || constraints.requireParameterAnnotations === true
+      || constraints.requireReturnAnnotation === true
+      || hasNamedEntries(constraints.requiredTypedMethods, ['methodName', 'name'])
+      || hasNamedEntries(constraints.requiredPrivateAttributes, ['attributeName', 'name'])
+      || hasNamedEntries(constraints.requiredProperties, ['attributeName', 'name'])
+      || hasTextValue(constraints.protectedAttributeNames);
   }
 
   setAlgorithmConstraintResult(result) {

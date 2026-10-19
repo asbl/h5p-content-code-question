@@ -163,17 +163,64 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
       return;
     }
 
-    const message = String(error || '').trim();
-    const lineMatch = message.match(/(?:line|zeile)\s*[:#]?\s*(\d+)/i);
-    this.lastExecutionError = { message, line: lineMatch ? Number(lineMatch[1]) : null };
+    const executionError = this.normalizeExecutionError(error);
+    this.lastExecutionError = executionError;
 
     const { root, status, error: errorCard, errorMessage, errorAction } = this.workspaceFeedback;
     root.hidden = false;
     root.dataset.state = 'error';
     status.textContent = getCodeQuestionL10nValue(this.l10n, 'executionFailed');
-    errorMessage.textContent = message;
+    errorMessage.textContent = executionError.message;
     errorAction.hidden = !this.lastExecutionError.line;
     errorCard.hidden = false;
+  }
+
+  normalizeExecutionError(error) {
+    const message = this.getExecutionErrorMessage(error);
+    const line = this.getExecutionErrorLine(error, message);
+
+    return { message, line };
+  }
+
+  getExecutionErrorMessage(error) {
+    if (typeof error === 'string') {
+      return error.trim();
+    }
+
+    const message = String(error?.message || error?.toString?.() || error || '').trim();
+    const diagnostics = Array.isArray(error?.diagnostics)
+      ? error.diagnostics.filter(Boolean).map((diagnostic) => String(diagnostic).trim()).filter(Boolean)
+      : [];
+
+    return diagnostics.length
+      ? `${message}\n${diagnostics.join('\n')}`.trim()
+      : message;
+  }
+
+  getExecutionErrorLine(error, message = '') {
+    const directLine = Number(
+      error?.line
+      ?? error?.lineno
+      ?? error?.lineNumber
+      ?? error?.position?.line
+      ?? error?.traceback?.[0]?.lineno
+      ?? error?.traceback?.at?.(-1)?.lineno,
+    );
+
+    if (Number.isInteger(directLine) && directLine > 0) {
+      return directLine;
+    }
+
+    const lineMatch = String(message || '').match(
+      /(?:line|zeile)\s*[:#]?\s*(\d+)|<exec>\s*,\s*line\s+(\d+)|File\s+"<[^"]+>"\s*,\s*line\s+(\d+)/i,
+    );
+
+    if (!lineMatch) {
+      return null;
+    }
+
+    const line = Number(lineMatch[1] || lineMatch[2] || lineMatch[3]);
+    return Number.isInteger(line) && line > 0 ? line : null;
   }
 
   focusErrorLine() {
@@ -184,6 +231,11 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
 
     this.showCodePage();
     const editor = this.getEditorManager?.().getActiveEditorInstance?.();
+    if (typeof editor?.focusLine === 'function') {
+      editor.focusLine(line);
+      return;
+    }
+
     const view = editor?.editorView;
     if (!view?.state?.doc || typeof view.dispatch !== 'function') {
       this.getEditorManager?.().focus?.();
