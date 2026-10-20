@@ -12,6 +12,8 @@ import CodeQuestionContainer from './container/codequestion-container';
 import CodeQuestionStateService from './services/codequestion-state';
 import MultipleChoiceMode from './modes/multiple-choice-mode';
 import SortItemsMode from './modes/sort-items-mode';
+import ParsonsMode from './modes/parsons-mode';
+import HintCascade from './services/hint-cascade';
 
 /**
  * @class
@@ -83,6 +85,7 @@ export default class CodeQuestion extends H5P.Question {
       this.contentType === 'text_only'
       && this.gradingMethod !== 'multipleChoice'
       && this.gradingMethod !== 'sortItems'
+      && this.gradingMethod !== 'parsons'
     ) {
       this.gradingMethod = null;
     }
@@ -105,6 +108,30 @@ export default class CodeQuestion extends H5P.Question {
       this.answerGiven = true;
     }
 
+    // ---- Parsons problem defaults -----------------------------------------
+    this.parsonsMode = new ParsonsMode(
+      this,
+      params.gradingSettings?.parsons || {},
+      extras?.previousState?.parsonsOrder,
+    );
+    if (this.isParsonsQuestion() && Array.isArray(extras?.previousState?.parsonsOrder) && extras.previousState.parsonsOrder.length > 0) {
+      this.answerGiven = true;
+    }
+
+    // ---- Didactic hint cascade --------------------------------------------
+    this.hintCascade = new HintCascade(
+      this,
+      params.hintSettings || {},
+      extras?.previousState || {},
+    );
+
+    // ---- Worked example after repeated failed checks -----------------------
+    this.workedExampleSettings = this.normalizeWorkedExampleSettings(params.workedExampleSettings);
+    this.failedChecks = Number.isInteger(extras?.previousState?.failedChecks)
+      ? extras.previousState.failedChecks
+      : 0;
+    this.workedExampleRevealed = extras?.previousState?.workedExampleRevealed === true;
+
     /* Legacy handling:
     solutionCode can be handled in
      * params.gradingSettings.targetCode
@@ -117,16 +144,25 @@ export default class CodeQuestion extends H5P.Question {
     this.dueDate = params.gradingSettings?.dueDateGroup?.duedate || null;
     this.enableDueDate = params.gradingSettings?.dueDateGroup?.enableDueDate === true;
 
-    this.codeTester = this.gradingMethod && !this.isMultipleChoiceQuestion() && !this.isSortQuestion()
+    this.codeTester = this.gradingMethod
+      && !this.isMultipleChoiceQuestion()
+      && !this.isSortQuestion()
+      && !this.isParsonsQuestion()
       ? this.getCodeTesterFactory().create()
       : null;
 
     // If grading method is unsupported, disable grading safely.
-    if (this.gradingMethod && !this.isMultipleChoiceQuestion() && !this.isSortQuestion() && !this.codeTester) {
+    if (
+      this.gradingMethod
+      && !this.isMultipleChoiceQuestion()
+      && !this.isSortQuestion()
+      && !this.isParsonsQuestion()
+      && !this.codeTester
+    ) {
       this.gradingMethod = null;
     }
 
-    this.maxScore = (this.isMultipleChoiceQuestion() || this.isSortQuestion()) ? 1 : 2;
+    this.maxScore = (this.isMultipleChoiceQuestion() || this.isSortQuestion() || this.isParsonsQuestion()) ? 1 : 2;
 
     // ---- UI flags -------------------------------------------------------
     this.hasConsole = params.editorSettings?.showConsole !== false;
@@ -137,8 +173,14 @@ export default class CodeQuestion extends H5P.Question {
     // cases' input values, which is confusing side by side with "Check
     // answer" once grading exists. So exactly one of the two is shown,
     // based on whether test cases/grading are configured for this content.
-    this.hasCheckButton = Boolean(this.codeTester) || this.isMultipleChoiceQuestion() || this.isSortQuestion();
-    this.hasRunButton = !this.codeTester && !this.isMultipleChoiceQuestion() && !this.isSortQuestion();
+    this.hasCheckButton = Boolean(this.codeTester)
+      || this.isMultipleChoiceQuestion()
+      || this.isSortQuestion()
+      || this.isParsonsQuestion();
+    this.hasRunButton = !this.codeTester
+      && !this.isMultipleChoiceQuestion()
+      && !this.isSortQuestion()
+      && !this.isParsonsQuestion();
     this.hasStopButton = true;
     this.hasTestCaseArea = true;
     this.hasAssets = false;
@@ -164,6 +206,28 @@ export default class CodeQuestion extends H5P.Question {
 
   isSortQuestion() {
     return this.gradingMethod === 'sortItems';
+  }
+
+  isParsonsQuestion() {
+    return this.gradingMethod === 'parsons';
+  }
+
+  /**
+   * Normalizes the worked example settings authored for this content.
+   * @param {object} rawSettings Raw workedExampleSettings params.
+   * @returns {object} Normalized settings with enable, code and threshold.
+   */
+  normalizeWorkedExampleSettings(rawSettings = {}) {
+    const rawThreshold = Number(rawSettings?.revealAfterFailedChecks);
+    const threshold = Number.isInteger(rawThreshold) && rawThreshold > 0
+      ? rawThreshold
+      : 3;
+
+    return {
+      enable: rawSettings?.enable === true,
+      code: typeof rawSettings?.code === 'string' ? rawSettings.code : '',
+      revealAfterFailedChecks: threshold,
+    };
   }
 
   /**
@@ -321,7 +385,7 @@ export default class CodeQuestion extends H5P.Question {
   buildResultStatement() {
     const score = this.getScore();
     const maxScore = this.getMaxScore();
-    return {
+    const result = {
       completion: true,
       success: this.success(),
       score: {
@@ -332,6 +396,15 @@ export default class CodeQuestion extends H5P.Question {
       },
       response: this.getResponse()
     };
+
+    if (this.hintCascade?.isEnabled()) {
+      result.extensions = {
+        ...result.extensions,
+        'https://opencoding.de/xapi/extension/hints-revealed': this.hintCascade.getHintsRevealed(),
+      };
+    }
+
+    return result;
   }
 
   getResponse() {
@@ -341,6 +414,10 @@ export default class CodeQuestion extends H5P.Question {
 
     if (this.isSortQuestion()) {
       return this.currentSortOrder.join('[,]');
+    }
+
+    if (this.isParsonsQuestion()) {
+      return this.parsonsMode.currentParsonsOrder.join('[,]');
     }
 
     return this.codeContainer?.getEditorManager?.()?.getCode() || '';
@@ -519,6 +596,16 @@ export default class CodeQuestion extends H5P.Question {
       }));
     }
 
+    if (this.isParsonsQuestion()) {
+      def.choices = this.parsonsMode.settings.lines.map((line) => ({
+        id: line.id,
+        description: {
+          [this.getCodingLanguage()]: line.code,
+          'en-US': line.code,
+        },
+      }));
+    }
+
     return def;
   }
 
@@ -527,7 +614,7 @@ export default class CodeQuestion extends H5P.Question {
       return 'choice';
     }
 
-    if (this.isSortQuestion()) {
+    if (this.isSortQuestion() || this.isParsonsQuestion()) {
       return 'sequencing';
     }
 
@@ -542,6 +629,11 @@ export default class CodeQuestion extends H5P.Question {
 
     if (this.isSortQuestion()) {
       const correctOrder = this.sortItemsMode.getCorrectItemIds();
+      return correctOrder.length > 0 ? [correctOrder.join('[,]')] : [];
+    }
+
+    if (this.isParsonsQuestion()) {
+      const correctOrder = this.parsonsMode.getCorrectLineIds();
       return correctOrder.length > 0 ? [correctOrder.join('[,]')] : [];
     }
 
@@ -562,7 +654,11 @@ export default class CodeQuestion extends H5P.Question {
    * event after the test run.
    */
   async checkAction() {
-    if (this.isMultipleChoiceQuestion() || this.isSortQuestion()) {
+    if (
+      this.isMultipleChoiceQuestion()
+      || this.isSortQuestion()
+      || this.isParsonsQuestion()
+    ) {
       this.sendAttemptedEvent();
       this.sendAnsweredEvent();
       this.evaluate();
@@ -670,12 +766,95 @@ export default class CodeQuestion extends H5P.Question {
       this.setSortLocked(true);
     }
 
+    if (this.isParsonsQuestion()) {
+      this.parsonsMode.applyFeedback();
+      this.parsonsMode.setLocked(true);
+    }
+
+    if (!this.success() && !this.isMultipleChoiceQuestion() && !this.isSortQuestion() && !this.isParsonsQuestion()) {
+      this.trackFailedCheck();
+    }
+
     this.showRetryAfterCheck();
 
     // Finalize attempt
     this.sendCompletedEvent();
 
     this.scheduleEvaluationFrameSync();
+  }
+
+  /**
+   * Counts one failed check and reveals the authored worked example once the
+   * configured number of failed checks is reached. Didactic rationale: after
+   * repeated unsuccessful attempts, studying a fully worked solution with
+   * comments is more productive than another unguided trial.
+   * @returns {void}
+   */
+  trackFailedCheck() {
+    this.failedChecks += 1;
+
+    if (
+      !this.workedExampleRevealed
+      && this.workedExampleSettings.enable
+      && this.workedExampleSettings.code.trim() !== ''
+      && this.failedChecks >= this.workedExampleSettings.revealAfterFailedChecks
+    ) {
+      this.revealWorkedExample();
+    }
+  }
+
+  /**
+   * Indicates whether the worked example applies to this content.
+   * @returns {boolean} True when a worked example is authored and enabled.
+   */
+  hasWorkedExample() {
+    return this.workedExampleSettings.enable === true
+      && this.workedExampleSettings.code.trim() !== '';
+  }
+
+  /**
+   * Renders the worked example panel and marks it as revealed so it stays
+   * visible across retries and page reloads.
+   * @returns {void}
+   */
+  revealWorkedExample() {
+    if (this.workedExampleRevealed || !this.hasWorkedExample()) {
+      return;
+    }
+
+    this.workedExampleRevealed = true;
+
+    const panel = this.buildWorkedExamplePanel();
+    if (panel) {
+      this.parentDiv.append(panel);
+      this.resizeActionHandler();
+    }
+  }
+
+  /**
+   * Builds the collapsible worked example panel with the solution code.
+   * @returns {HTMLElement|null} Panel element or null when disabled.
+   */
+  buildWorkedExamplePanel() {
+    if (!this.hasWorkedExample()) {
+      return null;
+    }
+
+    const details = document.createElement('details');
+    details.className = 'codequestion-worked-example';
+    const summary = document.createElement('summary');
+    summary.textContent = getCodeQuestionL10nValue(this.l10n, 'workedExampleTitle');
+    const intro = document.createElement('p');
+    intro.className = 'codequestion-worked-example__intro';
+    intro.textContent = getCodeQuestionL10nValue(this.l10n, 'workedExampleIntro');
+    const body = document.createElement('div');
+    const md = '```' + this.getCodingLanguage() + '\n' +
+      this.getDecodedCode(this.workedExampleSettings.code) + '\n```';
+    const markdown = new H5P.Markdown(md, this.getMarkdownOptions());
+    this.appendResolvedMarkdown(body, markdown);
+    details.append(summary, intro, body);
+
+    return details;
   }
 
 
@@ -872,6 +1051,22 @@ export default class CodeQuestion extends H5P.Question {
       state.sortOrder = this.currentSortOrder;
     }
 
+    if (this.isParsonsQuestion() && this.answerGiven) {
+      state.parsonsOrder = this.parsonsMode.currentParsonsOrder;
+    }
+
+    if (this.hintCascade?.isEnabled() && this.hintCascade.getHintsRevealed() > 0) {
+      state.hintsRevealed = this.hintCascade.getHintsRevealed();
+    }
+
+    if (this.failedChecks > 0) {
+      state.failedChecks = this.failedChecks;
+    }
+
+    if (this.workedExampleRevealed) {
+      state.workedExampleRevealed = true;
+    }
+
     return Object.keys(state).length > 0 ? state : undefined;
   }
 
@@ -935,7 +1130,50 @@ export default class CodeQuestion extends H5P.Question {
         this.addButton('retry', this.l10n.retry, () => this.resetTask(), false);
       }
     }
+    this.addHintButton();
     this.addResetButton();
+  }
+
+  /**
+   * Registers the hint button of the didactic hint cascade. Each click
+   * reveals the next authored hint; the button disables once all hints are
+   * shown. Hint usage is persisted and reported via xAPI.
+   * @returns {void}
+   */
+  addHintButton() {
+    if (!this.hintCascade?.isEnabled()) {
+      return;
+    }
+
+    this.addButton('hint', this.hintCascade.getButtonLabel(), () => this.hintAction());
+    this.updateHintButtonState();
+  }
+
+  /**
+   * Reveals the next hint, if any, and keeps the button label in sync.
+   * @returns {void}
+   */
+  hintAction() {
+    if (!this.hintCascade?.revealNextHint()) {
+      return;
+    }
+
+    this.resizeActionHandler();
+  }
+
+  /**
+   * Updates the hint button's disabled state and title after reveals.
+   * @returns {void}
+   */
+  updateHintButtonState() {
+    const button = this.getQuestionButton('hint');
+    if (!button) {
+      return;
+    }
+
+    button.title = this.hintCascade.getButtonTitle();
+    button.disabled = !this.hintCascade.hasUnrevealedHints();
+    button.setAttribute('aria-disabled', button.disabled ? 'true' : 'false');
   }
 
   /**
@@ -1018,12 +1256,27 @@ export default class CodeQuestion extends H5P.Question {
     if (this.isSortQuestion()) {
       contentDiv.append(this.sortItemsMode.render());
     }
+    if (this.isParsonsQuestion()) {
+      contentDiv.append(this.parsonsMode.render());
+    }
     this.parentDiv.append(contentDiv);
 
     if (this.isAssignment()) {
       this.createCodeContainer();
       this.renderCodeContainer(contentPartsDiv);
       this.renderAssetsIfNeeded();
+    }
+
+    const hintPanel = this.hintCascade?.render?.();
+    if (hintPanel) {
+      this.parentDiv.append(hintPanel);
+    }
+
+    if (this.workedExampleRevealed && this.hasWorkedExample()) {
+      const panel = this.buildWorkedExamplePanel();
+      if (panel) {
+        this.parentDiv.append(panel);
+      }
     }
 
     this.renderButtonsAndTestCases();
@@ -1283,7 +1536,12 @@ export default class CodeQuestion extends H5P.Question {
       return;
     }
     this.addButtons();
-    if (!this.isMultipleChoiceQuestion() && !this.isSortQuestion() && this.hasTestCaseArea) {
+    if (
+      !this.isMultipleChoiceQuestion()
+      && !this.isSortQuestion()
+      && !this.isParsonsQuestion()
+      && this.hasTestCaseArea
+    ) {
       this.parentDiv.append(this.codeTester.view.getDOM());
     }
   }
@@ -1387,6 +1645,9 @@ export default class CodeQuestion extends H5P.Question {
     else if (this.isSortQuestion()) {
       score = this.sortItemsMode.hasCorrectOrder() ? this.maxScore : 0;
     }
+    else if (this.isParsonsQuestion()) {
+      score = this.parsonsMode.hasCorrectOrder() ? this.maxScore : 0;
+    }
     else {
       if (!this.codeTester || typeof this.codeTester.getScore !== 'function') {
         return 0;
@@ -1432,6 +1693,10 @@ export default class CodeQuestion extends H5P.Question {
 
     if (this.isSortQuestion()) {
       this.sortItemsMode.reset();
+    }
+
+    if (this.isParsonsQuestion()) {
+      this.parsonsMode.reset();
     }
 
     this.resizeActionHandler();

@@ -2220,3 +2220,288 @@ describe('CodeQuestion', () => {
     }
   });
 });
+
+describe('Parsons grading', () => {
+  const createParsonsQuestion = (extraParams = {}, extras = {}) => new CodeQuestion({
+    contentType: 'text_only',
+    gradingSettings: {
+      gradingMethod: 'parsons',
+      parsons: {
+        lines: [
+          { code: 'total = 0' },
+          { code: 'for number in numbers:' },
+          { code: '    total += number' },
+          { code: 'print(total)' },
+        ],
+      },
+      ...extraParams.gradingSettings,
+    },
+    ...extraParams,
+  }, 1, extras);
+
+  it('uses built-in Parsons grading without creating a code tester', () => {
+    const question = createParsonsQuestion();
+
+    expect(mocks.createTester).not.toHaveBeenCalled();
+    expect(question.isParsonsQuestion()).toBe(true);
+    expect(question.codeTester).toBeNull();
+    expect(question.hasCheckButton).toBe(true);
+    expect(question.hasRunButton).toBe(false);
+    expect(question.getMaxScore()).toBe(1);
+    expect(question.parsonsMode.currentParsonsOrder.sort())
+      .toEqual(['line_0', 'line_1', 'line_2', 'line_3']);
+  });
+
+  it('requires the exact authored order for Parsons grading', () => {
+    const question = createParsonsQuestion();
+
+    question.parsonsMode.currentParsonsOrder = ['line_0', 'line_2', 'line_1', 'line_3'];
+    expect(question.getScore()).toBe(0);
+    expect(question.success()).toBe(false);
+
+    question.parsonsMode.currentParsonsOrder = ['line_0', 'line_1', 'line_2', 'line_3'];
+    expect(question.getScore()).toBe(1);
+    expect(question.success()).toBe(true);
+  });
+
+  it('renders code lines with preserved indentation and supports move buttons', () => {
+    const question = createParsonsQuestion();
+    question.parsonsMode.currentParsonsOrder = ['line_0', 'line_1', 'line_2', 'line_3'];
+    question.setContent = vi.fn();
+    question.addButton = vi.fn();
+
+    question.registerDomElements();
+
+    const items = question.parentDiv.querySelectorAll('.codequestion-parsons-item');
+    expect(items).toHaveLength(4);
+    expect(items[2].querySelector('code').textContent).toBe('    total += number');
+
+    items[0].querySelector('.codequestion-parsons-item__move--down').click();
+
+    expect(question.parsonsMode.currentParsonsOrder).toEqual(['line_1', 'line_0', 'line_2', 'line_3']);
+    expect(question.getAnswerGiven()).toBe(true);
+  });
+
+  it('marks lines as correctly/incorrectly placed after checking', () => {
+    const question = createParsonsQuestion();
+    question.setContent = vi.fn();
+    question.addButton = vi.fn();
+
+    question.registerDomElements();
+    question.parsonsMode.currentParsonsOrder = ['line_0', 'line_2', 'line_1', 'line_3'];
+
+    question.parsonsMode.applyFeedback();
+
+    const byId = (id) => question.parsonsMode.parsonsItemElements.get(id);
+    expect(byId('line_0').classList.contains('codequestion-parsons-item--correct')).toBe(true);
+    expect(byId('line_2').classList.contains('codequestion-parsons-item--incorrect')).toBe(true);
+    expect(byId('line_1').classList.contains('codequestion-parsons-item--incorrect')).toBe(true);
+  });
+
+  it('persists Parsons order state and exposes sequencing xAPI metadata', () => {
+    const question = createParsonsQuestion();
+
+    question.parsonsMode.currentParsonsOrder = ['line_1', 'line_0', 'line_2', 'line_3'];
+    question.answerGiven = true;
+
+    expect(question.getState()).toEqual({
+      parsonsOrder: ['line_1', 'line_0', 'line_2', 'line_3'],
+    });
+    expect(question.buildResultStatement().response).toBe('line_1[,]line_0[,]line_2[,]line_3');
+    const definition = question.getxAPIDefinition();
+    expect(definition.interactionType).toBe('sequencing');
+    expect(definition.correctResponsesPattern).toEqual(['line_0[,]line_1[,]line_2[,]line_3']);
+    expect(definition.choices).toMatchObject([
+      { id: 'line_0' },
+      { id: 'line_1' },
+      { id: 'line_2' },
+      { id: 'line_3' },
+    ]);
+  });
+
+  it('restores a valid persisted Parsons order across reloads', () => {
+    const question = createParsonsQuestion({}, {
+      previousState: {
+        parsonsOrder: ['line_3', 'line_0', 'line_1', 'line_2'],
+      },
+    });
+
+    expect(question.parsonsMode.currentParsonsOrder).toEqual(['line_3', 'line_0', 'line_1', 'line_2']);
+    expect(question.getAnswerGiven()).toBe(true);
+  });
+
+  it('sends Parsons answered before completed during check', async () => {
+    const question = createParsonsQuestion();
+    const events = [];
+    question.sendAttemptedEvent = vi.fn(() => events.push('attempted'));
+    question.sendAnsweredEvent = vi.fn(() => events.push('answered'));
+    question.sendCompletedEvent = vi.fn(() => events.push('completed'));
+    question.applyScoreFeedback = vi.fn();
+    question.scheduleEvaluationFrameSync = vi.fn();
+    question.showButton = vi.fn();
+    question.hideButton = vi.fn();
+
+    await question.checkAction();
+
+    expect(events).toEqual(['attempted', 'answered', 'completed']);
+  });
+});
+
+describe('Hint cascade', () => {
+  const createHintQuestion = (hintSettings, previousState = undefined) => new CodeQuestion({
+    gradingSettings: { gradingMethod: 'ioTestCases' },
+    hintSettings,
+  }, 1, previousState ? { previousState } : {});
+
+  it('reveals authored hints one by one and reports usage via xAPI', () => {
+    const question = createHintQuestion({
+      enableHints: true,
+      hints: ['Think about the loop bounds.', 'Use len(numbers).'],
+    });
+    question.resizeActionHandler = vi.fn();
+
+    expect(question.hintCascade.isEnabled()).toBe(true);
+    expect(question.hintCascade.hasUnrevealedHints()).toBe(true);
+
+    question.hintAction();
+    expect(question.hintCascade.getHintsRevealed()).toBe(1);
+
+    question.hintAction();
+    question.hintAction();
+    expect(question.hintCascade.getHintsRevealed()).toBe(2);
+
+    expect(question.getState()).toEqual({ hintsRevealed: 2 });
+    expect(question.buildResultStatement().extensions)
+      .toEqual({ 'https://opencoding.de/xapi/extension/hints-revealed': 2 });
+  });
+
+  it('restores the revealed hint count across reloads', () => {
+    const question = createHintQuestion({
+      enableHints: true,
+      hints: ['Hint one', 'Hint two'],
+    }, { hintsRevealed: 1 });
+
+    expect(question.hintCascade.getHintsRevealed()).toBe(1);
+    expect(question.hintCascade.hasUnrevealedHints()).toBe(true);
+  });
+
+  it('stays inactive without authored hints', () => {
+    const question = createHintQuestion({});
+
+    expect(question.hintCascade.isEnabled()).toBe(false);
+    expect(question.buildResultStatement().extensions).toBeUndefined();
+  });
+
+  it('stays inactive when hints are authored but the toggle is off', () => {
+    const question = createHintQuestion({
+      enableHints: false,
+      hints: ['Hint one'],
+    });
+
+    expect(question.hintCascade.isEnabled()).toBe(false);
+    expect(question.hintCascade.hasUnrevealedHints()).toBe(false);
+    expect(question.buildResultStatement().extensions).toBeUndefined();
+  });
+});
+
+describe('Worked example', () => {
+  const createWorkedExampleQuestion = (workedExampleSettings, previousState = undefined) => new CodeQuestion({
+    contentType: 'text_only',
+    gradingSettings: { gradingMethod: 'ioTestCases' },
+    workedExampleSettings,
+  }, 1, previousState ? { previousState } : {});
+
+  it('reveals the worked example after the configured number of failed checks', () => {
+    const originalMarkdown = H5P.Markdown;
+    H5P.Markdown = class MarkdownMock {
+      constructor(markdown) {
+        this.markdown = markdown;
+      }
+
+      getMarkdownDiv() {
+        const div = document.createElement('div');
+        div.textContent = this.markdown;
+        return div;
+      }
+    };
+
+    const question = createWorkedExampleQuestion({
+      enable: true,
+      revealAfterFailedChecks: 2,
+      code: 'total = sum(numbers)',
+    });
+    question.applyScoreFeedback = vi.fn();
+    question.showRetryAfterCheck = vi.fn();
+    question.sendCompletedEvent = vi.fn();
+    question.scheduleEvaluationFrameSync = vi.fn();
+    question.resizeActionHandler = vi.fn();
+    question.setCodeContainer = vi.fn();
+
+    try {
+      question.evaluate();
+      expect(question.workedExampleRevealed).toBe(false);
+
+      question.evaluate();
+      expect(question.workedExampleRevealed).toBe(true);
+      expect(question.parentDiv.querySelector('.codequestion-worked-example')).not.toBeNull();
+      expect(question.getState()).toMatchObject({
+        failedChecks: 2,
+        workedExampleRevealed: true,
+      });
+    }
+    finally {
+      H5P.Markdown = originalMarkdown;
+    }
+  });
+
+  it('keeps a revealed worked example visible across reloads', () => {
+    const originalMarkdown = H5P.Markdown;
+    H5P.Markdown = class MarkdownMock {
+      constructor(markdown) {
+        this.markdown = markdown;
+      }
+
+      getMarkdownDiv() {
+        const div = document.createElement('div');
+        div.textContent = this.markdown;
+        return div;
+      }
+    };
+
+    const question = createWorkedExampleQuestion({
+      enable: true,
+      code: 'total = sum(numbers)',
+    }, { workedExampleRevealed: true, failedChecks: 3 });
+    question.setContent = vi.fn();
+    question.addButton = vi.fn();
+
+    try {
+      question.registerDomElements();
+
+      expect(question.parentDiv.querySelector('.codequestion-worked-example')).not.toBeNull();
+    }
+    finally {
+      H5P.Markdown = originalMarkdown;
+    }
+  });
+
+  it('does not count failed checks for sort, MC or Parsons tasks', () => {
+    const question = new CodeQuestion({
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: { items: [{ text: 'A' }, { text: 'B' }] },
+      },
+      workedExampleSettings: { enable: true, code: 'x = 1' },
+    }, 1);
+    question.applyScoreFeedback = vi.fn();
+    question.showRetryAfterCheck = vi.fn();
+    question.sendCompletedEvent = vi.fn();
+    question.scheduleEvaluationFrameSync = vi.fn();
+
+    question.evaluate();
+    question.evaluate();
+
+    expect(question.failedChecks).toBe(0);
+    expect(question.workedExampleRevealed).toBe(false);
+  });
+});
