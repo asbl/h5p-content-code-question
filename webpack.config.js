@@ -13,7 +13,11 @@ module.exports = {
     alias: {
       '@scripts': path.resolve(__dirname, 'src/scripts'),
       '@services': path.resolve(__dirname, 'src/scripts/services'),
-      '@styles': path.resolve(__dirname, 'src/styles')
+      '@styles': path.resolve(__dirname, 'src/styles'),
+      // Sibling-repo shared code. Centralizing the path here means a
+      // LibCodeTools version-folder bump only needs updating in one place
+      // instead of in every importing file.
+      '@libcodetools': path.resolve(__dirname, '../H5P.LibCodeTools-6.0/src')
     }
   },
   optimization: {

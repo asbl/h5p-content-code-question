@@ -9,6 +9,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@scripts': path.resolve(__dirname, 'src/scripts'),
+      '@libcodetools': path.resolve(__dirname, '../H5P.LibCodeTools-6.0/src'),
     },
   },
   test: {

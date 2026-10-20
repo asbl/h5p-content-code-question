@@ -1,6 +1,6 @@
 import ConsoleRuntimeManager from './runtime-manager-console';
 import { logCodeQuestionDiagnostic } from '../services/codequestion-diagnostics';
-import { formatRuntimeError } from '../../../../H5P.LibCodeTools-6.0/src/scripts/runtime/runtime-result';
+import { formatRuntimeError } from '@libcodetools/scripts/runtime/runtime-result';
 
 export class Runtime {
 
