@@ -1,4 +1,5 @@
 import { getCodeQuestionL10nValue } from '../services/codequestion-l10n';
+import ContainerFullscreenManager from '../services/container-fullscreen-manager';
 
 export default class CodeQuestionContainer extends H5P.CodeContainer {
 
@@ -736,158 +737,75 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     this.getButtonManager().showButton('stopButton');
   }
 
+  /**
+   * Returns the fullscreen manager, created lazily since the container's
+   * parent/DOM refs are not guaranteed to exist yet at construction time.
+   * @returns {ContainerFullscreenManager} Fullscreen manager instance.
+   */
+  getFullscreenManager() {
+    if (!this._fullscreenManager) {
+      this._fullscreenManager = new ContainerFullscreenManager(this);
+    }
+
+    return this._fullscreenManager;
+  }
+
+  /**
+   * Enters fullscreen and reveals the task panel, if entering succeeded.
+   * @returns {void}
+   */
   enableFullscreen() {
-    if (this.setFullscreen()) {
-      this.showTaskPanel();
-    }
+    this.getFullscreenManager().enableFullscreen();
   }
 
+  /**
+   * Hides the task panel and exits fullscreen.
+   * @returns {void}
+   */
   disableFullscreen() {
-    this.hideTaskPanel();
-    this.unsetFullscreen();
+    this.getFullscreenManager().disableFullscreen();
   }
 
-  ensureTaskPanel() {
-    if (this.taskPanel) {
-      return this.taskPanel;
-    }
-
-    const panel = document.createElement('aside');
-    panel.className = 'codequestion-task-panel';
-    panel.setAttribute('aria-label', getCodeQuestionL10nValue(this.l10n, 'taskPanelLabel'));
-    const header = document.createElement('div');
-    header.className = 'codequestion-task-panel__header';
-    const title = document.createElement('strong');
-    title.textContent = getCodeQuestionL10nValue(this.l10n, 'taskPanelLabel');
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'codequestion-task-panel__toggle';
-    toggle.textContent = getCodeQuestionL10nValue(this.l10n, 'taskPanelCollapse');
-    toggle.setAttribute('aria-expanded', 'true');
-    const content = document.createElement('div');
-    content.className = 'codequestion-task-panel__content';
-    toggle.addEventListener('click', () => {
-      const collapsed = panel.classList.toggle('is-collapsed');
-      content.hidden = collapsed;
-      toggle.setAttribute('aria-expanded', String(!collapsed));
-      toggle.textContent = getCodeQuestionL10nValue(this.l10n, collapsed ? 'taskPanelExpand' : 'taskPanelCollapse');
-    });
-    header.append(title, toggle);
-    panel.append(header, content);
-    this.getContainerDiv().append(panel);
-    this.taskPanel = { panel, content };
-    return this.taskPanel;
-  }
-
-  showTaskPanel() {
-    const taskPanel = this.ensureTaskPanel();
-    const questionRoot = this.parent.closest('.h5p-codequestion');
-    const nodes = questionRoot
-      ? [...questionRoot.querySelectorAll('.instructions-container, .testcases-area')]
-      : [];
-
-    this.taskPanelRestorePoints = nodes.map((node) => ({
-      node,
-      parent: node.parentNode,
-      nextSibling: node.nextSibling,
-    }));
-    nodes.forEach((node) => taskPanel.content.append(node));
-    taskPanel.panel.hidden = nodes.length === 0;
-  }
-
-  hideTaskPanel() {
-    this.taskPanelRestorePoints?.forEach(({ node, parent, nextSibling }) => {
-      if (!parent) return;
-      parent.insertBefore(node, nextSibling);
-    });
-    this.taskPanelRestorePoints = [];
-    if (this.taskPanel) {
-      this.taskPanel.panel.hidden = true;
-    }
-  }
-
+  /**
+   * Returns the DOM element that should receive fullscreen styling.
+   * @returns {HTMLElement|null} Fullscreen host element.
+   */
   getFullscreenHost() {
-    return this.containerDiv?.parentNode?.parentNode
-      || this.parent?.closest?.('.content-part')
-      || this.parent
-      || null;
+    return this.getFullscreenManager().getFullscreenHost();
   }
 
+  /**
+   * Returns the surrounding H5P container element.
+   * @returns {HTMLElement|null} H5P container element.
+   */
   getH5PContainer() {
-    return this.parent?.closest?.('.h5p-container')
-      || document?.querySelector?.('.h5p-container')
-      || null;
+    return this.getFullscreenManager().getH5PContainer();
   }
 
+  /**
+   * Resolves the H5P instance that owns the given container.
+   * @param {HTMLElement|null} h5pContainer H5P container element.
+   * @returns {object|null} H5P content instance.
+   */
   getFullscreenInstance(h5pContainer) {
-    if (this.h5pInstance && typeof this.h5pInstance.trigger === 'function') {
-      return this.h5pInstance;
-    }
-
-    const instances = Array.isArray(H5P?.instances) ? H5P.instances : [];
-
-    return instances.find((instance) => {
-      const candidateContainer = instance?.$container?.[0]
-        || instance?.$container?.get?.(0)
-        || instance?.container?.[0]
-        || instance?.container
-        || null;
-
-      return candidateContainer === h5pContainer;
-    }) || instances[0] || null;
+    return this.getFullscreenManager().getFullscreenInstance(h5pContainer);
   }
 
+  /**
+   * Enters fullscreen via H5P.fullScreen(), if all prerequisites resolve.
+   * @returns {boolean} True if fullscreen was entered.
+   */
   setFullscreen() {
-    const fullscreenHost = this.getFullscreenHost();
-    const h5pContainer = this.getH5PContainer();
-    const fullscreenInstance = this.getFullscreenInstance(h5pContainer);
-
-    if (!fullscreenHost
-      || !h5pContainer
-      || !fullscreenInstance
-      || typeof H5P?.fullScreen !== 'function'
-      || typeof H5P?.jQuery !== 'function') {
-      return false;
-    }
-
-    this.getButtonManager().hideButton('fullscreenEnable');
-    this.getButtonManager().showButton('fullscreenDisable');
-    this.getButtonManager().getButton?.('fullscreenDisable')?.setAttribute('aria-expanded', 'true');
-    this.getButtonManager().getButton?.('fullscreenEnable')?.setAttribute('aria-expanded', 'true');
-    this.fullscreen = true;
-    fullscreenHost.classList.add('fullscreen', 'codequestion-fullscreen-host');
-    fullscreenHost.classList.remove('theme-light', 'theme-dark');
-    fullscreenHost.classList.add(this.getThemeClassName());
-
-    h5pContainer?.classList.remove('theme-light', 'theme-dark');
-    h5pContainer?.classList.add(this.getThemeClassName());
-
-    H5P.fullScreen(H5P.jQuery(h5pContainer), fullscreenInstance);
-
-    return true;
+    return this.getFullscreenManager().setFullscreen();
   }
 
+  /**
+   * Exits fullscreen and restores non-fullscreen button/theme state.
+   * @param {object} [options] Exit options.
+   * @returns {void}
+   */
   unsetFullscreen(options = {}) {
-    const { skipNativeExit = false } = options;
-    const fullscreenHost = this.getFullscreenHost();
-    const h5pContainer = this.getH5PContainer();
-
-    this.getButtonManager().hideButton('fullscreenDisable');
-    this.getButtonManager().showButton('fullscreenEnable');
-    this.getButtonManager().getButton?.('fullscreenDisable')?.setAttribute('aria-expanded', 'false');
-    this.getButtonManager().getButton?.('fullscreenEnable')?.setAttribute('aria-expanded', 'false');
-    this.fullscreen = false;
-    fullscreenHost?.classList.remove('fullscreen', 'codequestion-fullscreen-host', 'theme-light', 'theme-dark');
-
-    h5pContainer?.classList.remove('theme-light', 'theme-dark');
-
-    this.getEditorManager().restoreDynamicHeight();
-    this.getConsoleManager().restoreConsoleHeight();
-    this.hideTaskPanel();
-
-    if (!skipNativeExit && typeof H5P.exitFullScreen === 'function') {
-      H5P.exitFullScreen();
-    }
+    return this.getFullscreenManager().unsetFullscreen(options);
   }
 
 }
