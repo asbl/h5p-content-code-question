@@ -326,7 +326,8 @@ describe('TestCaseView reset behavior', () => {
     });
 
     expect(document.querySelector('.passed')?.textContent).toContain('✗');
-    expect(document.querySelector('.passed')?.textContent).toContain('Requirements missing: create an object');
+    expect(document.querySelector('.passed')?.textContent).not.toContain('Requirements missing: create an object');
+    expect(document.querySelector('.testcase-reason-cell')?.textContent).toContain('Requirements missing: create an object');
     expect(document.querySelector('.passed')?.getAttribute('aria-label')).toContain('create an object');
   });
 
@@ -366,7 +367,7 @@ describe('TestCaseView reset behavior', () => {
       },
     });
 
-    const statusText = document.querySelector('.passed')?.textContent || '';
+    const statusText = document.querySelector('.testcase-reason-cell')?.textContent || '';
     expect(statusText).toContain('class Person');
     expect(statusText).toContain('class Team');
     expect(statusText).toContain('method Team.anzahl');

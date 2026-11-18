@@ -188,15 +188,15 @@
     display: block;
 }
 
-.h5p-codequestion .table-testcase .testcase-mismatch-reason {
-    display: block;
-    margin: 6px auto 0;
+.h5p-codequestion .table-testcase .testcase-reason-row td {
+    text-align: left;
+    background-color: #fef2f2;
+    color: #7f1d1d;
     font-family: system-ui, sans-serif;
-    font-size: 12px;
+    font-size: 15px;
     font-weight: normal;
-    line-height: 1.35;
-    max-width: 26rem;
-    white-space: normal;
+    line-height: 1.6;
+    white-space: pre-line;
     word-break: break-word;
 }
 
@@ -1281,6 +1281,15 @@
     border-color: #334155;
 }
 
+.h5p-codequestion.theme-dark .table-testcase .testcase-reason-row td,
+.theme-dark .h5p-codequestion .table-testcase .testcase-reason-row td,
+.h5p-fullscreen .h5p-codequestion .content-part.fullscreen.theme-dark .table-testcase .testcase-reason-row td,
+.h5p-semi-fullscreen .h5p-codequestion .content-part.fullscreen.theme-dark .table-testcase .testcase-reason-row td {
+    background: #450a0a;
+    color: #fecaca;
+    border-color: #7f1d1d;
+}
+
 .h5p-codequestion.theme-dark .tables-table .matching,
 .theme-dark .h5p-codequestion .tables-table .matching,
 .h5p-fullscreen .h5p-codequestion .content-part.fullscreen.theme-dark .tables-table .matching,
@@ -1401,6 +1410,14 @@
         color: #475569;
     }
 
+    .h5p-codequestion .table-testcase tbody .testcase-reason-cell {
+        display: block;
+    }
+
+    .h5p-codequestion .table-testcase tbody .testcase-reason-cell::before {
+        content: none;
+    }
+
     .h5p-codequestion .table-testcase tbody td:first-child {
         border-top: 0;
         padding-top: 0;
@@ -1466,4 +1483,11 @@
 .algorithm-trace__cell--marked {
   background: #bfe3ff;
   border-color: #2b6cb0;
+}
+
+/* Player mode: the code is only played; the editor is hidden until the
+   learner reveals it via the "Show code" button. */
+.h5p-codequestion .code_container.player-mode:not(.player-code-visible) .container-code,
+.h5p-codequestion .code_container.player-mode:not(.player-code-visible) .editor-file-tabs {
+    display: none !important;
 }

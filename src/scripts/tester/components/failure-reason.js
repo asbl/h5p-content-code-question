@@ -29,6 +29,10 @@ function translateConstraintViolation(l10n, violation) {
     return tCodeQuestion(l10n, CONSTRAINT_LABELS[text]);
   }
 
+  if (text === 'Forbidden data structure: list') {
+    return tCodeQuestion(l10n, 'constraintForbiddenList');
+  }
+
   const prefixed = [
     ['Required data structure: ', 'constraintRequiredDataStructure'],
     ['Forbidden data structure: ', 'constraintForbiddenDataStructure'],
@@ -61,19 +65,24 @@ function translateConstraintViolation(l10n, violation) {
   return text;
 }
 
+// Only strings/numbers are ever meant to end up in a constraint label; stringifying a
+// stray object here would otherwise silently produce "[object Object]" in the UI.
+function toText(value) {
+  return (typeof value === 'string' || typeof value === 'number') ? String(value).trim() : '';
+}
+
 function normalizeList(values, property = null) {
   const entries = Array.isArray(values)
-    ? values.map((value) => (property ? value?.[property] : value?.structure ?? value?.name ?? value))
-    : String(values || '').split(',');
+    ? values.map((value) => (property
+      ? toText(value?.[property])
+      : toText(value?.structure) || toText(value?.name) || toText(value)))
+    : String(values || '').split(',').map((value) => toText(value));
 
-  return entries
-    .map((value) => String(value || '').trim())
-    .filter(Boolean);
+  return entries.filter(Boolean);
 }
 
 function normalizeParameterList(value) {
-  return (Array.isArray(value) ? value : String(value || '').split(','))
-    .map((entry) => String(entry || '').trim())
+  return (Array.isArray(value) ? value.map((entry) => toText(entry)) : String(value || '').split(',').map((entry) => toText(entry)))
     .filter((entry) => entry && entry !== 'self');
 }
 
@@ -186,6 +195,10 @@ export function describeFailureReason(l10n, reason) {
     return '';
   }
 
+  if (reason.type === 'multipleFailures') {
+    return reason.reasons.map((failure) => describeFailureReason(l10n, failure)).filter(Boolean).join('\n\n');
+  }
+
   if (reason.type === 'lineCountMismatch') {
     return tCodeQuestion(l10n, 'outputLineCountMismatch', {
       actual: reason.actualCount,
@@ -225,8 +238,15 @@ export function describeFailureReason(l10n, reason) {
     }
 
     if (reason.status === 'configuration') {
+      const configurationErrors = {
+        'Arguments and expected result must be valid JSON values.': 'functionTesterInvalidJson',
+        'Configure an expected result as JSON.': 'functionTesterMissingExpectedResult',
+        'Configure a valid Python function name.': 'functionTesterInvalidFunctionName',
+      };
       return tCodeQuestion(l10n, 'functionTesterConfigurationFailed', {
-        error: reason.detail || tCodeQuestion(l10n, 'constraintUnknown'),
+        error: configurationErrors[reason.detail]
+          ? tCodeQuestion(l10n, configurationErrors[reason.detail])
+          : (reason.detail || tCodeQuestion(l10n, 'constraintUnknown')),
       });
     }
 
@@ -251,6 +271,41 @@ export function describeFailureReason(l10n, reason) {
   return tCodeQuestion(l10n, 'testFailureReasonGeneric');
 }
 
+/**
+ * Shows or hides the full-width failure detail row below a testcase's main row.
+ * Keeping it out of the narrow "passed" column makes long constraint
+ * explanations readable instead of wrapping into a cramped cell.
+ * @param {HTMLTableCellElement} statusCell - The "passed" cell of the testcase row.
+ * @param {string} reasonText - Failure detail text, or '' to remove the row.
+ * @returns {void}
+ */
+function updateReasonRow(statusCell, reasonText) {
+  const row = statusCell.closest('tr');
+  if (!row || !row.parentNode) return;
+
+  const existingReasonRow = row.nextElementSibling?.classList?.contains('testcase-reason-row')
+    ? row.nextElementSibling
+    : null;
+
+  if (!reasonText) {
+    existingReasonRow?.remove();
+    return;
+  }
+
+  const reasonRow = existingReasonRow || document.createElement('tr');
+  if (!existingReasonRow) {
+    reasonRow.className = 'testcase-reason-row';
+    const reasonCell = document.createElement('td');
+    reasonCell.className = 'testcase-reason-cell';
+    reasonCell.setAttribute('aria-live', 'polite');
+    reasonCell.colSpan = row.cells.length;
+    reasonRow.appendChild(reasonCell);
+    row.parentNode.insertBefore(reasonRow, row.nextSibling);
+  }
+
+  reasonRow.querySelector('.testcase-reason-cell').textContent = reasonText;
+}
+
 export function setPassedCellStatus(cell, l10n, passed, reason = null) {
   if (!cell) return;
 
@@ -267,13 +322,8 @@ export function setPassedCellStatus(cell, l10n, passed, reason = null) {
   mark.textContent = passed ? '✓' : '✗';
   cell.appendChild(mark);
 
-  if (reasonText) {
-    const reasonEl = document.createElement('span');
-    reasonEl.className = 'testcase-mismatch-reason';
-    reasonEl.textContent = reasonText;
-    cell.appendChild(reasonEl);
-  }
-
   cell.setAttribute('aria-label', fullLabel);
   cell.title = fullLabel;
+
+  updateReasonRow(cell, reasonText);
 }

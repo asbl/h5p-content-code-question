@@ -2,6 +2,7 @@ import TestCaseView from '../components/view-tester.js';
 import DateHandler from '../components/date-handler.js';
 import { getCodeQuestionL10nValue, tCodeQuestion } from '../../services/codequestion-l10n.js';
 import { setPassedCellStatus } from '../components/failure-reason.js';
+import { formatFunctionTestValue } from '../../services/function-test-values.js';
 
 /** Displays function calls and their return values without using HTML input. */
 export default class FunctionTesterView extends TestCaseView {
@@ -83,12 +84,9 @@ export default class FunctionTesterView extends TestCaseView {
     const detail = result?.detail || '--';
     const outputCell = row.querySelector('.output');
     const violations = this.algorithmConstraintResult?.violations || [];
-    const constraintDetail = violations.length
-      ? ` ${tCodeQuestion(this.l10n, 'functionTesterConstraintDetail', { violations: violations.join(', ') })}`
-      : '';
-    outputCell.textContent = result?.status === 'error'
-      ? `${getCodeQuestionL10nValue(this.l10n, 'functionTesterError')}: ${detail}${constraintDetail}`
-      : `${detail}${constraintDetail}`;
+    outputCell.textContent = ['error', 'configuration'].includes(result?.status)
+      ? getCodeQuestionL10nValue(this.l10n, 'functionTesterNoResult')
+      : detail;
     row.classList.toggle('test-passed', passed);
 
     const statusCell = row.querySelector('.passed');
@@ -96,7 +94,18 @@ export default class FunctionTesterView extends TestCaseView {
       type: 'algorithmConstraintMismatch',
       violations,
     } : null;
-    setPassedCellStatus(statusCell, this.l10n, passed, reason || fallbackReason);
+    const functionReason = result && result.status !== 'passed' ? {
+      type: 'functionResultMismatch',
+      status: result.status,
+      detail: result.detail,
+    } : null;
+    const reasons = result?.status === 'configuration'
+      ? [functionReason]
+      : [functionReason, reason?.type === 'algorithmConstraintMismatch' ? reason : fallbackReason];
+    const failures = reasons.filter(Boolean);
+    setPassedCellStatus(statusCell, this.l10n, passed, failures.length
+      ? { type: 'multipleFailures', reasons: failures }
+      : reason);
   }
 
   getDOM() {
@@ -135,12 +144,12 @@ export default class FunctionTesterView extends TestCaseView {
 
       const row = document.createElement('tr');
       const argumentsText = (testCase.arguments || [])
-        .map((argument) => String(argument?.argument ?? argument ?? ''))
+        .map((argument) => formatFunctionTestValue(argument?.argument ?? argument))
         .join(', ');
       const call = `${this.functionName}(${argumentsText})`;
       const values = testCase.hidden
         ? [this.l10n.hidden || '[hidden]', this.l10n.hidden || '[hidden]']
-        : [call, String(testCase.expectedResult ?? '')];
+        : [call, formatFunctionTestValue(testCase.expectedResult)];
 
       values.forEach((value, cellIndex) => {
         const cell = document.createElement('td');

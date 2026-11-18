@@ -1,7 +1,58 @@
 import { describe, expect, it } from 'vitest';
 
-import { describeFailureReason } from '../src/scripts/tester/components/failure-reason.js';
+import { describeFailureReason, setPassedCellStatus } from '../src/scripts/tester/components/failure-reason.js';
 import defaultLanguage from '../src/scripts/services/default-language.json';
+
+function buildTestcaseRow() {
+  const table = document.createElement('table');
+  const tbody = document.createElement('tbody');
+  const row = document.createElement('tr');
+  ['input', 'expected', 'output', 'passed'].forEach((className) => {
+    const cell = document.createElement('td');
+    cell.className = className;
+    row.appendChild(cell);
+  });
+  tbody.appendChild(row);
+  table.appendChild(tbody);
+  document.body.appendChild(table);
+  return row;
+}
+
+describe('setPassedCellStatus - full-width failure detail row', () => {
+  it('renders the failure reason in a full-width row below the testcase, not inside the narrow status cell', () => {
+    document.body.innerHTML = '';
+    const row = buildTestcaseRow();
+    const statusCell = row.querySelector('.passed');
+
+    setPassedCellStatus(statusCell, {}, false, {
+      type: 'algorithmConstraintMismatch',
+      violations: ['Forbidden data structure: list'],
+    });
+
+    expect(statusCell.textContent).toBe('✗');
+    const reasonRow = row.nextElementSibling;
+    expect(reasonRow.className).toBe('testcase-reason-row');
+    const reasonCell = reasonRow.querySelector('.testcase-reason-cell');
+    expect(reasonCell.colSpan).toBe(4);
+    expect(reasonCell.textContent).toContain('Your code uses a list');
+    expect(statusCell.getAttribute('aria-label')).toContain('Your code uses a list');
+  });
+
+  it('removes the reason row once the testcase passes', () => {
+    document.body.innerHTML = '';
+    const row = buildTestcaseRow();
+    const statusCell = row.querySelector('.passed');
+
+    setPassedCellStatus(statusCell, {}, false, {
+      type: 'algorithmConstraintMismatch',
+      violations: ['Forbidden data structure: list'],
+    });
+    expect(row.nextElementSibling?.className).toBe('testcase-reason-row');
+
+    setPassedCellStatus(statusCell, {}, true);
+    expect(row.nextElementSibling).toBeNull();
+  });
+});
 
 describe('describeFailureReason - type hint and encapsulation constraints', () => {
   it('explains required attribute annotations', () => {

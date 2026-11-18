@@ -28,6 +28,110 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     return this._dialogQueue || null;
   }
 
+  /* ------------------------------------------------------------------ *
+   *  Player mode: run only, editor hidden, optional "Show code" button
+   * ------------------------------------------------------------------ */
+
+  /**
+   * Whether this container only plays code instead of showing an editor.
+   * @returns {boolean} True in player mode.
+   */
+  isPlayerMode() {
+    return this.options?.playerMode === true;
+  }
+
+  /**
+   * Whether the learner may reveal the code in player mode.
+   * @returns {boolean} True if the "Show code" button is offered.
+   */
+  canTogglePlayerCode() {
+    return this.isPlayerMode() && this.options?.playerShowCodeButton !== false;
+  }
+
+  /**
+   * Whether the editor is currently hidden by player mode.
+   * @returns {boolean} True if the editor must not be shown or focused.
+   */
+  isEditorHiddenByPlayer() {
+    return this.isPlayerMode() && this._playerCodeVisible !== true;
+  }
+
+  getContainerClasses() {
+    return `${super.getContainerClasses()}${this.isPlayerMode() ? ' player-mode' : ''}`;
+  }
+
+  // Saving/loading and extra files would expose or replace the hidden code.
+  hasStorageButtons() {
+    return !this.isPlayerMode() && super.hasStorageButtons();
+  }
+
+  hasFileManagerPage() {
+    return !this.isPlayerMode() && super.hasFileManagerPage();
+  }
+
+  hasPlayerCodeToggle() {
+    return this.canTogglePlayerCode();
+  }
+
+  /**
+   * Reveals or hides the editor in player mode.
+   * @param {boolean} visible Whether the editor should be visible.
+   * @returns {void}
+   */
+  setPlayerCodeVisible(visible) {
+    if (!this.isPlayerMode()) {
+      return;
+    }
+
+    this._playerCodeVisible = visible === true;
+    this.getContainerDiv().classList.toggle('player-code-visible', this._playerCodeVisible);
+
+    const buttons = this.getButtonManager();
+    buttons.setButtonVisibility('playerShowCode', !this._playerCodeVisible);
+    buttons.setButtonVisibility('playerHideCode', this._playerCodeVisible);
+    this.updateShowCodeButtonLabel();
+
+    if (this._playerCodeVisible) {
+      this.showCodePage();
+    }
+    else {
+      this.clearPendingEditorFocus();
+      this.resizeActionHandler();
+    }
+  }
+
+  togglePlayerCode() {
+    this.setPlayerCodeVisible(!this._playerCodeVisible);
+  }
+
+  showPlayerCode() {
+    this.setPlayerCodeVisible(true);
+  }
+
+  hidePlayerCode() {
+    this.setPlayerCodeVisible(false);
+  }
+
+  /**
+   * The "back" button leads to the code page. Without a visible editor that
+   * page only holds the console, so it is labeled accordingly.
+   * @returns {void}
+   */
+  updateShowCodeButtonLabel() {
+    if (!this.isPlayerMode()) {
+      return;
+    }
+
+    const label = this._playerCodeVisible
+      ? getCodeQuestionL10nValue(this.l10n, 'showCode')
+      : getCodeQuestionL10nValue(this.l10n, 'playerShowOutput');
+    const labelNode = this.getButtonManager().getButton('showCodeButton')?.lastChild;
+
+    if (labelNode?.nodeType === 3) {
+      labelNode.nodeValue = label;
+    }
+  }
+
   applyTheme() {
     super.applyTheme();
 
@@ -42,6 +146,9 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     await super.setup();
     this.restorePreferredTheme();
     this.ensureWorkspaceFeedback();
+    if (this.isPlayerMode()) {
+      this.setPlayerCodeVisible(false);
+    }
   }
 
   getThemeStorageKey() {
@@ -172,7 +279,8 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     root.dataset.state = 'error';
     status.textContent = getCodeQuestionL10nValue(this.l10n, 'executionFailed');
     errorMessage.textContent = executionError.message;
-    errorAction.hidden = !this.lastExecutionError.line;
+    errorAction.hidden = !this.lastExecutionError.line
+      || (this.isPlayerMode() && !this.canTogglePlayerCode());
     errorCard.hidden = false;
   }
 
@@ -230,6 +338,13 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
       return;
     }
 
+    if (this.isEditorHiddenByPlayer()) {
+      if (!this.canTogglePlayerCode()) {
+        return;
+      }
+      this.setPlayerCodeVisible(true);
+    }
+
     this.showCodePage();
     const editor = this.getEditorManager?.().getActiveEditorInstance?.();
     if (typeof editor?.focusLine === 'function') {
@@ -270,6 +385,23 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
             class: 'fullscreendisable',
             state: 'hidden',
             weight: 9,
+          },
+          {
+            when: 'hasPlayerCodeToggle',
+            identifier: 'playerShowCode',
+            label: () => getCodeQuestionL10nValue(this.l10n, 'playerShowCode'),
+            icon: 'fa-solid fa-code',
+            class: 'player_show_code',
+            weight: 8,
+          },
+          {
+            when: 'hasPlayerCodeToggle',
+            identifier: 'playerHideCode',
+            label: () => getCodeQuestionL10nValue(this.l10n, 'playerHideCode'),
+            icon: 'fa-solid fa-eye-slash',
+            class: 'player_hide_code',
+            weight: 8,
+            state: 'hidden',
           },
           {
             when: 'hasInstructionsPage',
@@ -361,6 +493,20 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
             type: 'button-click',
             button: 'fullscreenDisable',
             callback: 'disableFullscreen',
+          },
+          {
+            when: 'hasPlayerCodeToggle',
+            name: 'button:player:showCode',
+            type: 'button-click',
+            button: 'playerShowCode',
+            callback: 'showPlayerCode',
+          },
+          {
+            when: 'hasPlayerCodeToggle',
+            name: 'button:player:hideCode',
+            type: 'button-click',
+            button: 'playerHideCode',
+            callback: 'hidePlayerCode',
           },
           {
             when: 'hasStorageButtons',
@@ -464,6 +610,10 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
    * @returns {boolean} True if this instance should own editor focus now.
    */
   shouldFocusEditor() {
+    if (this.isEditorHiddenByPlayer()) {
+      return false;
+    }
+
     if (this.getPageManager().activePageName !== 'code') {
       return false;
     }
@@ -560,6 +710,11 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     this.clearPendingEditorFocus();
     this.getButtonManager().hideButton('runButton');
     this.getButtonManager().showButton('showCodeButton');
+
+    // A player replays from its output; there is no editor page to return to first.
+    if (this.isPlayerMode() && !this.getStateManager().isRunning()) {
+      this.getButtonManager().showButton('runButton');
+    }
   }
 
   showInstructionsPage() {

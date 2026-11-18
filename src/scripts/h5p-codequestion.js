@@ -17,6 +17,7 @@ import HintCascade from './services/hint-cascade';
 import XAPIReporter from './services/xapi-reporter';
 import InternalFrameResizeSync from './services/internal-frame-resize-sync';
 import ContentPartRenderer from './services/content-part-renderer';
+import { resolvePlayerContainerOptions } from './services/player-mode';
 
 /**
  * @class
@@ -696,6 +697,8 @@ export default class CodeQuestion extends H5P.Question {
       // browser-local and never replaces an LMS/H5P submission.
       workspaceAutosaveEnabled: this.contentType === 'ide_only' && contentParams === null,
       workspaceAutosaveKey: `h5p-codequestion:${this.contentId}:${this.getCodingLanguage()}`,
+      // Player mode: run only, editor hidden (optionally revealable).
+      ...resolvePlayerContainerOptions(this.params, contentParams),
     };
   }
 

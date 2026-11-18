@@ -1,5 +1,6 @@
 import CodeTester from '../tester.js';
 import FunctionTesterView from './view-tester-function.js';
+import { normalizeFunctionTestValue, toPythonLiteral } from '../../services/function-test-values.js';
 
 const RESULT_PREFIX = '__H5P_FUNCTION_TEST_RESULT__:';
 const IDENTIFIER_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -8,21 +9,6 @@ const getRandomToken = () => (
   globalThis.crypto?.randomUUID?.()
     || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
 );
-
-const toPythonLiteral = (value) => {
-  if (value === null) return 'None';
-  if (value === true) return 'True';
-  if (value === false) return 'False';
-  if (typeof value === 'number') return String(value);
-  if (typeof value === 'string') return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(toPythonLiteral).join(', ')}]`;
-  if (typeof value === 'object') {
-    return `{${Object.entries(value)
-      .map(([key, item]) => `${JSON.stringify(key)}: ${toPythonLiteral(item)}`)
-      .join(', ')}}`;
-  }
-  throw new Error('Unsupported JSON value');
-};
 
 /**
  * Tests a callable supplied by the learner instead of its standard output.
@@ -102,8 +88,8 @@ export default class FunctionTester extends CodeTester {
   getTestCaseValues(testCase) {
     const values = [
       ...(Array.isArray(testCase.arguments) ? testCase.arguments : []),
-    ].map((argument) => String(argument?.argument ?? argument ?? '').trim());
-    const expected = String(testCase.expectedResult ?? '').trim();
+    ].map((argument) => normalizeFunctionTestValue(argument?.argument ?? argument));
+    const expected = normalizeFunctionTestValue(testCase.expectedResult);
 
     if (!IDENTIFIER_PATTERN.test(this.functionName)) {
       throw new Error('Configure a valid Python function name.');
