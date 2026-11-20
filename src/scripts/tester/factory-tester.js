@@ -14,6 +14,7 @@ export default class CodeTesterFactory {
     enableDueDate,
     solutionCode,
     functionName = '', algorithmConstraints = {}, algorithmTrace = {}, enableDiagnosticLogs = false,
+    testerOptions = {},
   ) {
     this.testcases = testcases;
     this.gradingMethod = gradingMethod;
@@ -27,6 +28,7 @@ export default class CodeTesterFactory {
     this.algorithmConstraints = algorithmConstraints;
     this.algorithmTrace = algorithmTrace;
     this.enableDiagnosticLogs = enableDiagnosticLogs === true;
+    this.testerOptions = testerOptions && typeof testerOptions === 'object' ? testerOptions : {};
   }
 
   create() {
@@ -53,7 +55,7 @@ export default class CodeTesterFactory {
       this.functionName,
       this.algorithmConstraints,
       this.algorithmTrace,
-      { enableDiagnosticLogs: this.enableDiagnosticLogs },
+      { ...this.testerOptions, enableDiagnosticLogs: this.enableDiagnosticLogs },
     ];
     return new TesterClass(...commonArgs);
   }

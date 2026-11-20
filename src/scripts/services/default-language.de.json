@@ -145,6 +145,12 @@
     "constraintForbiddenList": "Dein Code verwendet eine Liste (list). Laut den Einstellungen dieser Aufgabe sind Listen nicht erlaubt. Falls die Musterlösung ebenfalls Listen verwendet, muss die Lehrkraft die Aufgabeneinstellungen korrigieren.",
     "imageTesterMissingCanvas": "Das Programm hat kein Bild erzeugt, das verglichen werden kann.",
     "imageTesterMissingImageData": "Das erzeugte Bild konnte nicht gelesen werden.",
-    "imageTesterDifference": "Das Bild unterscheidet sich vom erwarteten Ergebnis ({diff} abweichende Pixel, erlaubt sind {max})."
+    "imageTesterDifference": "Das Bild unterscheidet sich vom erwarteten Ergebnis ({diff} abweichende Pixel, erlaubt sind {max}).",
+    "testCaseHint": "Hinweis: {hint}",
+    "learningGoalProgress": "{goal}: {passed} von {total} Tests bestanden",
+    "tableDiffRowOrder": "Die Zeilen sind richtig, aber in einer anderen Reihenfolge. Pruefe die Sortierung (ORDER BY).",
+    "queryConstraintsTitle": "Vorgaben fuer die Abfrage",
+    "testResultPassed": "bestanden",
+    "testResultFailed": "nicht bestanden"
   }
 }

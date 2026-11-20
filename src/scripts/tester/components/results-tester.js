@@ -5,8 +5,9 @@ export default class TestResult {
   /**
    * Creates a new TestResult instance.
    * @param {number} testcaseCount - The total number of test cases.
+   * @param {number[]} weights Positive integer points for each test case.
    */
-  constructor(testcaseCount) {
+  constructor(testcaseCount, weights = []) {
     /**
      * Stores the result of each test case.
      * Each entry is represented as:
@@ -15,6 +16,10 @@ export default class TestResult {
      * @type {number[]}
      */
     this.testcaseCount = testcaseCount;
+    this.weights = Array.from({ length: testcaseCount }, (_, index) => {
+      const weight = Number(weights[index] ?? 1);
+      return Number.isInteger(weight) && weight > 0 && weight <= 100 ? weight : 1;
+    });
     this.results = new Array(this.testcaseCount).fill(0);
   }
 
@@ -37,7 +42,7 @@ export default class TestResult {
    * @returns {number} The number of test cases that passed.
    */
   getScore() {
-    return this.results.reduce((sum, r) => sum + r, 0);
+    return this.results.reduce((sum, r, index) => sum + r * this.weights[index], 0);
   }
 
   getSingleScore(index) {
@@ -50,7 +55,7 @@ export default class TestResult {
    * @returns {number} The total number of test cases.
    */
   getMaxScore() {
-    return this.results.length;
+    return this.weights.reduce((sum, weight) => sum + weight, 0);
   }
 
   getRelativeScore() {

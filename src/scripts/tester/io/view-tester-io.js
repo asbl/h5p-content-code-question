@@ -1,3 +1,4 @@
+import { testCaseTitle, updateTestHint, renderLearningGoals, renderOutputDifference } from '../components/testcase-feedback';
 import TestCaseView from '../components/view-tester';
 import DateHandler from '@scripts/tester/components/date-handler';
 import { describeFailureReason, setPassedCellStatus } from '../components/failure-reason';
@@ -41,7 +42,13 @@ export class IOTesterView extends TestCaseView {
     const outputCell = row.querySelector('.output');
     setMultilineText(outputCell, output?.length ? output : ['--']);
     row.classList.toggle('test-passed', passed);
-    this.setPassedCellStatus(row.querySelector('.passed'), passed, mismatchReason);
+    const testCase = this.session.testcases[testCaseIndex];
+    this.setPassedCellStatus(row.querySelector('.passed'), passed, testCase.hidden ? null : mismatchReason);
+    updateTestHint(row, testCase, passed, this.l10n);
+    if (!passed && !testCase.hidden && mismatchReason?.type === 'lineContentMismatch') {
+      const expected = (testCase.outputs || []).map((value) => value?.output ?? value).join('\n');
+      renderOutputDifference(outputCell, expected, (output || []).join('\n'));
+    }
   }
 
   describeMismatchReason(mismatchReason) {
@@ -50,6 +57,10 @@ export class IOTesterView extends TestCaseView {
 
   setPassedCellStatus(cell, passed, mismatchReason = null) {
     setPassedCellStatus(cell, this.l10n, passed, mismatchReason);
+  }
+
+  updateLearningGoals(results) {
+    renderLearningGoals(this, results);
   }
 
   getDOM() {
@@ -77,7 +88,7 @@ export class IOTesterView extends TestCaseView {
 
       // Heading
       const heading = document.createElement('h3');
-      heading.textContent = `${this.l10n.testCase} ${i + 1}`;
+      heading.textContent = testCaseTitle(this.l10n, testCase, i);
       testCaseDiv.appendChild(heading);
 
       // Table

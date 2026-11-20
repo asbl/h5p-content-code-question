@@ -809,6 +809,8 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
    * @returns {void}
    */
   stop() {
+    this.stopSignal = true;
+    this.stop_signal = true;
     this._runtime?.stop();
     this.getStateManager().stop();
     this.setExecutionStatus('stopped');

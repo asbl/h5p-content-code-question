@@ -167,6 +167,7 @@ export default class CodeQuestion extends H5P.Question {
     }
 
     this.maxScore = (this.isMultipleChoiceQuestion() || this.isSortQuestion() || this.isParsonsQuestion()) ? 1 : 2;
+    if (this.usesPartialCredit()) this.maxScore = this.codeTester.results.getMaxScore();
 
     // ---- UI flags -------------------------------------------------------
     this.hasConsole = params.editorSettings?.showConsole !== false;
@@ -461,6 +462,7 @@ export default class CodeQuestion extends H5P.Question {
       return;
     }
 
+    this.codeContainer?._runtime?.stop?.();
     this.resetStopSignal();
     // Clear any stale execution-error banner (e.g. "Program could not be
     // run.") left over from an earlier manual run/attempt. Without this,
@@ -478,6 +480,7 @@ export default class CodeQuestion extends H5P.Question {
       this.codeTester.reset();
       const runtime = this.getTestRuntimeFactory().create();
       await runtime.start(this.codeContainer);
+      if (this.shouldStop()) return;
 
       // Show feedback
       const score = this.getScore();
@@ -709,7 +712,7 @@ export default class CodeQuestion extends H5P.Question {
   getCodeTesterFactory() {
     const FactoryClass = this.getCodeTesterFactoryClass();
     return new FactoryClass(
-      this.testcases,
+      this.getTesterTestCases(),
       this.gradingMethod,
       () => this.evaluate(),
       () => this.getTestRuntimeFactory(),
@@ -721,7 +724,25 @@ export default class CodeQuestion extends H5P.Question {
       this.params.gradingSettings?.algorithmConstraints || {},
       this.params.gradingSettings?.algorithmTrace || {},
       this.getCodeContainerOptions()?.enableDiagnosticLogs === true,
+      this.getTesterOptions(),
     );
+  }
+
+  /**
+   * Returns the test cases handed to the tester. Subclasses may extend the
+   * authored list, for example with an implicit default case.
+   * @returns {object[]} Test cases.
+   */
+  getTesterTestCases() {
+    return this.testcases;
+  }
+
+  /**
+   * Returns additional, language-specific options for the tester.
+   * @returns {object} Tester options.
+   */
+  getTesterOptions() {
+    return {};
   }
 
   getTestRuntimeFactoryClass() {
@@ -1339,6 +1360,12 @@ export default class CodeQuestion extends H5P.Question {
     return this.answerGiven;
   }
 
+  usesPartialCredit() {
+    return ['ioTestCases', 'functionTests'].includes(this.gradingMethod)
+      && this.params.gradingSettings?.partialCredit === true
+      && !!this.codeTester?.results;
+  }
+
   getScore() {
     let score;
     if (this.isMultipleChoiceQuestion()) {
@@ -1354,7 +1381,9 @@ export default class CodeQuestion extends H5P.Question {
       if (!this.codeTester || typeof this.codeTester.getScore !== 'function') {
         return 0;
       }
-      score = this.codeTester.getScore() * 2;
+      score = this.usesPartialCredit()
+        ? this.codeTester.results.getScore()
+        : this.codeTester.getScore() * 2;
     }
 
     if (this.isLateSubmission()) {

@@ -1,3 +1,4 @@
+import { testCaseTitle, updateTestHint, renderLearningGoals, renderOutputDifference } from '../components/testcase-feedback';
 import TestCaseView from '../components/view-tester.js';
 import DateHandler from '../components/date-handler.js';
 import { getCodeQuestionL10nValue, tCodeQuestion } from '../../services/codequestion-l10n.js';
@@ -81,7 +82,8 @@ export default class FunctionTesterView extends TestCaseView {
     if (!row) return;
 
     const result = Array.isArray(output) ? output[0] : null;
-    const detail = result?.detail || '--';
+    const detail = this.session.testcases[index]?.hidden
+      ? (this.l10n.hidden || '[hidden]') : (result?.detail || '--');
     const outputCell = row.querySelector('.output');
     const violations = this.algorithmConstraintResult?.violations || [];
     outputCell.textContent = ['error', 'configuration'].includes(result?.status)
@@ -89,6 +91,11 @@ export default class FunctionTesterView extends TestCaseView {
       : detail;
     row.classList.toggle('test-passed', passed);
 
+    const testCase = this.session.testcases[index];
+    updateTestHint(row, testCase, passed, this.l10n);
+    if (!passed && !testCase.hidden && result?.status === 'failed') {
+      renderOutputDifference(outputCell, formatFunctionTestValue(testCase.expectedResult), detail);
+    }
     const statusCell = row.querySelector('.passed');
     const fallbackReason = !passed && violations.length ? {
       type: 'algorithmConstraintMismatch',
@@ -103,9 +110,13 @@ export default class FunctionTesterView extends TestCaseView {
       ? [functionReason]
       : [functionReason, reason?.type === 'algorithmConstraintMismatch' ? reason : fallbackReason];
     const failures = reasons.filter(Boolean);
-    setPassedCellStatus(statusCell, this.l10n, passed, failures.length
+    setPassedCellStatus(statusCell, this.l10n, passed, testCase.hidden ? null : (failures.length
       ? { type: 'multipleFailures', reasons: failures }
-      : reason);
+      : reason));
+  }
+
+  updateLearningGoals(results) {
+    renderLearningGoals(this, results);
   }
 
   getDOM() {
@@ -121,7 +132,7 @@ export default class FunctionTesterView extends TestCaseView {
       container.className = 'table-testcase-container function-tester';
 
       const heading = document.createElement('h3');
-      heading.textContent = `${this.l10n.testCase || 'Test case'} ${index + 1}`;
+      heading.textContent = testCaseTitle(this.l10n, testCase, index);
       container.appendChild(heading);
 
       const table = document.createElement('table');

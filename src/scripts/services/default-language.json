@@ -145,6 +145,12 @@
     "constraintForbiddenList": "Your code uses a list. According to this task's settings, lists are not allowed. If the reference solution also uses lists, your teacher needs to correct the task settings.",
     "imageTesterMissingCanvas": "The program did not create an image that can be compared.",
     "imageTesterMissingImageData": "The generated image could not be read.",
-    "imageTesterDifference": "The image differs from the expected result ({diff} differing pixels, {max} allowed)."
+    "imageTesterDifference": "The image differs from the expected result ({diff} differing pixels, {max} allowed).",
+    "testCaseHint": "Hint: {hint}",
+    "learningGoalProgress": "{goal}: {passed} of {total} tests passed",
+    "tableDiffRowOrder": "The rows are correct, but in a different order. Check the sorting (ORDER BY).",
+    "queryConstraintsTitle": "Requirements for the query",
+    "testResultPassed": "passed",
+    "testResultFailed": "not passed"
   }
 }

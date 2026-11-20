@@ -2504,4 +2504,15 @@ describe('Worked example', () => {
     expect(question.failedChecks).toBe(0);
     expect(question.workedExampleRevealed).toBe(false);
   });
+  it('uses weighted integer points only when partial credit is explicitly enabled', () => {
+    const results = { getScore: () => 3, getMaxScore: () => 5 };
+    mocks.createTester.mockReturnValue({ results, getScore: () => 0, view: {} });
+    const partial = new CodeQuestion({ gradingSettings: { gradingMethod: 'functionTests', partialCredit: true } }, 1);
+    expect(partial.getScore()).toBe(3);
+    expect(partial.getMaxScore()).toBe(5);
+    const legacy = new CodeQuestion({ gradingSettings: { gradingMethod: 'functionTests' } }, 1);
+    expect(legacy.getScore()).toBe(0);
+    expect(legacy.getMaxScore()).toBe(2);
+  });
+
 });

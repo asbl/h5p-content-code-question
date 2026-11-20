@@ -1491,3 +1491,93 @@
 .h5p-codequestion .code_container.player-mode:not(.player-code-visible) .editor-file-tabs {
     display: none !important;
 }
+
+.testcase-hint,
+.testcase-learning-goals {
+  padding: 0.6em 0.8em;
+  border-inline-start: 3px solid #487da5;
+}
+
+.table-testcase .output mark {
+  background: #ffe29a;
+  color: #222;
+}
+
+/* SQL result checks: one collapsible card per test case plus the
+   structural query requirements. */
+.h5p-codequestion .tables-testcases {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.h5p-codequestion .tables-testcase {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 6px 12px;
+}
+
+.h5p-codequestion .tables-testcase.matching {
+    border-color: #86c9a0;
+}
+
+.h5p-codequestion .tables-testcase.not-matching {
+    border-color: #e29aa8;
+}
+
+.h5p-codequestion .tables-testcase > summary {
+    cursor: pointer;
+    font-weight: 600;
+    padding: 4px 0;
+}
+
+.h5p-codequestion .tables-testcase.matching > summary {
+    color: #166534;
+}
+
+.h5p-codequestion .tables-testcase.not-matching > summary {
+    color: #9f1239;
+}
+
+.h5p-codequestion .tables-query-constraints {
+    margin: 0 0 12px;
+    padding: 0.6em 0.8em;
+    border-inline-start: 3px solid #487da5;
+}
+
+.h5p-codequestion .tables-query-constraints h4 {
+    margin: 0 0 4px;
+}
+
+.h5p-codequestion .tables-query-constraints ul {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+}
+
+.h5p-codequestion .tables-query-constraints li.matching {
+    color: #166534;
+}
+
+.h5p-codequestion .tables-query-constraints li.not-matching {
+    color: #9f1239;
+}
+
+.h5p-codequestion.theme-dark .tables-testcase,
+.theme-dark .h5p-codequestion .tables-testcase {
+    border-color: #475569;
+}
+
+.h5p-codequestion.theme-dark .tables-testcase.matching > summary,
+.theme-dark .h5p-codequestion .tables-testcase.matching > summary,
+.h5p-codequestion.theme-dark .tables-query-constraints li.matching,
+.theme-dark .h5p-codequestion .tables-query-constraints li.matching {
+    color: #86efac;
+}
+
+.h5p-codequestion.theme-dark .tables-testcase.not-matching > summary,
+.theme-dark .h5p-codequestion .tables-testcase.not-matching > summary,
+.h5p-codequestion.theme-dark .tables-query-constraints li.not-matching,
+.theme-dark .h5p-codequestion .tables-query-constraints li.not-matching {
+    color: #fda4af;
+}

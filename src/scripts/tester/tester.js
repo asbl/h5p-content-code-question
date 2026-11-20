@@ -94,7 +94,7 @@ export default class CodeTester {
    * @returns {TestResult} A TestResult Instance
    */
   resultFactory() {
-    return new TestResult(this.session.countTestCases());
+    return new TestResult(this.session.countTestCases(), this.testcases.map((testCase) => testCase.weight));
   }
 
   reset() {
@@ -138,6 +138,7 @@ export default class CodeTester {
 
     this.results.setResult(indexNumber, passed);
     this.view.update(indexNumber, output, passed, testPassed ? constraintReason : mismatchReason);
+    this.view.updateLearningGoals?.(this.results);
   }
 
   evaluateCompletedTest() {

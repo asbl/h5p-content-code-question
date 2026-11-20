@@ -83,6 +83,7 @@ export default class FunctionTester extends CodeTester {
 
     this.results.setResult(testCaseIndex, passed);
     this.view.update(testCaseIndex, output, passed, reason);
+    this.view.updateLearningGoals?.(this.results);
   }
 
   getTestCaseValues(testCase) {
