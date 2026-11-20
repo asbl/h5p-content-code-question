@@ -991,6 +991,19 @@
     display: none;
 }
 
+/*
+ * An error has to stay readable and must not hide the code the learner has to
+ * fix. Unlike the small run-status chip, the error card therefore takes part
+ * in the normal layout instead of floating over the editor.
+ */
+.h5p-codequestion .codequestion-workspace-feedback[data-state="error"] {
+    position: static;
+    right: auto;
+    bottom: auto;
+    max-width: none;
+    margin: 0 0 8px;
+}
+
 .h5p-codequestion .code_container {
     position: relative;
 }

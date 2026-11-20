@@ -1,5 +1,6 @@
 import { getCodeQuestionL10nValue } from '../services/codequestion-l10n';
 import ContainerFullscreenManager from '../services/container-fullscreen-manager';
+import { filterLearnerTraceback } from '../services/traceback-filter';
 
 export default class CodeQuestionContainer extends H5P.CodeContainer {
 
@@ -278,7 +279,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     root.hidden = false;
     root.dataset.state = 'error';
     status.textContent = getCodeQuestionL10nValue(this.l10n, 'executionFailed');
-    errorMessage.textContent = executionError.message;
+    errorMessage.textContent = filterLearnerTraceback(executionError.message);
     errorAction.hidden = !this.lastExecutionError.line
       || (this.isPlayerMode() && !this.canTogglePlayerCode());
     errorCard.hidden = false;
