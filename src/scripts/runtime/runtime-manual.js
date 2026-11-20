@@ -17,7 +17,8 @@ export const ManualRuntimeMixin = (Base) =>
      * @returns {Promise<void>}
      */
     async run() {
-      await this.runCode(this.getCode());
+      const code = this.getCode();
+      await this.runCode(this.options?.getFunctionTrialCode?.(code) ?? code);
     }
 
     /**

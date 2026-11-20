@@ -190,6 +190,29 @@ function describeConfiguredConstraints(l10n, constraints = {}) {
   return [...new Set(descriptions)];
 }
 
+/**
+ * Formats the error detail of a failed function call. The harness appends
+ * " @<line>" to the first line when it could locate the failing learner line;
+ * later lines (e.g. a hint) are kept as they are.
+ * @param {object} l10n Localization map.
+ * @param {string} detail Raw detail from the test harness.
+ * @returns {string} Readable error text.
+ */
+function describeFunctionError(l10n, detail) {
+  const text = String(detail || '').trim();
+  if (!text) {
+    return tCodeQuestion(l10n, 'constraintUnknown');
+  }
+
+  const [firstLine, ...rest] = text.split('\n');
+  const match = firstLine.match(/^(.*?)\s@(\d+)$/);
+  const head = match
+    ? tCodeQuestion(l10n, 'functionTesterErrorAtLine', { error: match[1], line: match[2] })
+    : firstLine;
+
+  return [head, ...rest].join('\n');
+}
+
 export function describeFailureReason(l10n, reason) {
   if (!reason) {
     return '';
@@ -233,7 +256,7 @@ export function describeFailureReason(l10n, reason) {
   if (reason.type === 'functionResultMismatch') {
     if (reason.status === 'error') {
       return tCodeQuestion(l10n, 'functionTesterFailedWithError', {
-        error: reason.detail || tCodeQuestion(l10n, 'constraintUnknown'),
+        error: describeFunctionError(l10n, reason.detail),
       });
     }
 

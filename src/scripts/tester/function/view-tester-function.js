@@ -2,7 +2,7 @@ import { testCaseTitle, updateTestHint, renderLearningGoals, renderOutputDiffere
 import TestCaseView from '../components/view-tester.js';
 import DateHandler from '../components/date-handler.js';
 import { getCodeQuestionL10nValue, tCodeQuestion } from '../../services/codequestion-l10n.js';
-import { setPassedCellStatus } from '../components/failure-reason.js';
+import { describeFailureReason, setPassedCellStatus } from '../components/failure-reason.js';
 import { formatFunctionTestValue } from '../../services/function-test-values.js';
 
 /** Displays function calls and their return values without using HTML input. */
@@ -21,6 +21,52 @@ export default class FunctionTesterView extends TestCaseView {
 
   setAlgorithmConstraintResult(result) {
     this.algorithmConstraintResult = result;
+    this.renderConstraintStatus();
+  }
+
+  /**
+   * Shows the task's structure requirement (e.g. "a while loop must be used")
+   * once, separate from the per-call results, so both can be judged on their own.
+   */
+  renderConstraintStatus() {
+    const area = this.getTestCasesAreaDiv();
+    if (!area) return;
+
+    let section = area.querySelector('.algorithm-constraint-status');
+    const result = this.algorithmConstraintResult;
+    if (!result) {
+      section?.remove();
+      return;
+    }
+
+    if (!section) {
+      section = document.createElement('section');
+      section.className = 'algorithm-constraint-status';
+      section.setAttribute('aria-live', 'polite');
+      const summary = area.querySelector('.testcases-summary');
+      area.insertBefore(section, summary ? summary.nextSibling : area.firstChild);
+    }
+
+    const violations = Array.isArray(result.violations) ? result.violations : [];
+    const met = result.passed === true && violations.length === 0;
+    section.classList.toggle('is-met', met);
+    section.classList.toggle('is-violated', !met);
+
+    const mark = document.createElement('span');
+    mark.className = 'algorithm-constraint-mark';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = met ? '✓' : '✗';
+
+    const title = document.createElement('strong');
+    title.textContent = getCodeQuestionL10nValue(this.l10n, 'algorithmConstraintTitle');
+
+    const text = document.createElement('span');
+    text.className = 'algorithm-constraint-text';
+    text.textContent = met
+      ? getCodeQuestionL10nValue(this.l10n, 'algorithmConstraintMet')
+      : describeFailureReason(this.l10n, { type: 'algorithmConstraintMismatch', violations, constraints: result.constraints });
+
+    section.replaceChildren(mark, title, document.createTextNode(' '), text);
   }
 
   setAlgorithmTraceEvents(events) {
@@ -33,7 +79,10 @@ export default class FunctionTesterView extends TestCaseView {
     const panel = this.getTestCasesAreaDiv()?.querySelector('.algorithm-trace');
     if (!panel) return;
     panel.replaceChildren();
+    panel.hidden = !this.algorithmTraceEvents.length;
     if (!this.algorithmTraceEvents.length) return;
+    const title = document.createElement('h3');
+    title.textContent = getCodeQuestionL10nValue(this.l10n, 'algorithmTrace');
     const event = this.algorithmTraceEvents[this.algorithmTraceStep];
     const controls = document.createElement('div');
     const previous = document.createElement('button');
@@ -74,10 +123,10 @@ export default class FunctionTesterView extends TestCaseView {
     detail.textContent = event.indices
       ? tCodeQuestion(this.l10n, 'algorithmTraceIndices', { indices: event.indices.join(', ') })
       : (event.label || '');
-    panel.append(controls, array, detail);
+    panel.append(title, controls, array, detail);
   }
 
-  update(index, output, passed, reason = null) {
+  update(index, output, passed, _reason = null) {
     const row = this.getTestCasesAreaDiv()?.querySelector(`.table-testcase-${index} tbody tr`);
     if (!row) return;
 
@@ -85,34 +134,24 @@ export default class FunctionTesterView extends TestCaseView {
     const detail = this.session.testcases[index]?.hidden
       ? (this.l10n.hidden || '[hidden]') : (result?.detail || '--');
     const outputCell = row.querySelector('.output');
-    const violations = this.algorithmConstraintResult?.violations || [];
     outputCell.textContent = ['error', 'configuration'].includes(result?.status)
       ? getCodeQuestionL10nValue(this.l10n, 'functionTesterNoResult')
       : detail;
-    row.classList.toggle('test-passed', passed);
-
     const testCase = this.session.testcases[index];
-    updateTestHint(row, testCase, passed, this.l10n);
-    if (!passed && !testCase.hidden && result?.status === 'failed') {
-      renderOutputDifference(outputCell, formatFunctionTestValue(testCase.expectedResult), detail);
-    }
-    const statusCell = row.querySelector('.passed');
-    const fallbackReason = !passed && violations.length ? {
-      type: 'algorithmConstraintMismatch',
-      violations,
-    } : null;
     const functionReason = result && result.status !== 'passed' ? {
       type: 'functionResultMismatch',
       status: result.status,
       detail: result.detail,
     } : null;
-    const reasons = result?.status === 'configuration'
-      ? [functionReason]
-      : [functionReason, reason?.type === 'algorithmConstraintMismatch' ? reason : fallbackReason];
-    const failures = reasons.filter(Boolean);
-    setPassedCellStatus(statusCell, this.l10n, passed, testCase.hidden ? null : (failures.length
-      ? { type: 'multipleFailures', reasons: failures }
-      : reason));
+    // The structure requirement is reported once in its own section, so a
+    // correct return value keeps its check mark in the row.
+    const rowPassed = passed || (result?.status === 'passed' && !functionReason);
+    row.classList.toggle('test-passed', rowPassed);
+    updateTestHint(row, testCase, rowPassed, this.l10n);
+    if (!rowPassed && !testCase.hidden && result?.status === 'failed') {
+      renderOutputDifference(outputCell, formatFunctionTestValue(testCase.expectedResult), detail);
+    }
+    setPassedCellStatus(row.querySelector('.passed'), this.l10n, rowPassed, testCase.hidden ? null : functionReason);
   }
 
   updateLearningGoals(results) {
@@ -187,11 +226,10 @@ export default class FunctionTesterView extends TestCaseView {
     testCasesArea.replaceChildren(fragment);
     const trace = document.createElement('section');
     trace.className = 'algorithm-trace';
-    const title = document.createElement('h3');
-    title.textContent = getCodeQuestionL10nValue(this.l10n, 'algorithmTrace');
-    trace.appendChild(title);
+    trace.hidden = true;
     testCasesArea.appendChild(trace);
     this.renderTrace();
+    this.renderConstraintStatus();
     return testCasesArea;
   }
 }

@@ -15,6 +15,8 @@ import {
  *
  * Displays table-based testcases side by side and highlights differences.
  */
+const MAX_DIFF_ROWS = 10;
+
 export default class TablesView extends TestCaseView {
   /**
    * @param {object} l10n Localized labels.
@@ -329,32 +331,25 @@ export default class TablesView extends TestCaseView {
 
   renderDetailList(comparison) {
     const details = [];
+    const columnsMismatch = comparison.missingColumns.length > 0 || comparison.extraColumns.length > 0;
+    const expectedColumns = this.getPrimaryTable(this.targetTable)?.columns ?? [];
+    const actualColumns = this.getPrimaryTable(this.resultTable)?.columns ?? [];
 
-    if (comparison.missingColumns.length > 0) {
-      details.push(this.renderSummaryItem(
-        getCodeQuestionL10nValue(this.l10n, 'tableDiffMissingColumns'),
-        this.escapeHtml(comparison.missingColumns.join(', ')),
-      ));
-    }
-
-    if (comparison.extraColumns.length > 0) {
-      details.push(this.renderSummaryItem(
-        getCodeQuestionL10nValue(this.l10n, 'tableDiffExtraColumns'),
-        this.escapeHtml(comparison.extraColumns.join(', ')),
-      ));
+    if (columnsMismatch) {
+      details.push(this.renderColumnCause(comparison, expectedColumns, actualColumns));
     }
 
     if (comparison.missingRows.length > 0) {
       details.push(this.renderSummaryItem(
         getCodeQuestionL10nValue(this.l10n, 'tableDiffMissingRows'),
-        comparison.missingRows.map((row) => this.escapeHtml(row.join(' | '))).join('<br>'),
+        this.renderRowsTable(expectedColumns, comparison.missingRows),
       ));
     }
 
     if (comparison.extraRows.length > 0) {
       details.push(this.renderSummaryItem(
         getCodeQuestionL10nValue(this.l10n, 'tableDiffExtraRows'),
-        comparison.extraRows.map((row) => this.escapeHtml(row.join(' | '))).join('<br>'),
+        this.renderRowsTable(actualColumns, comparison.extraRows),
       ));
     }
 
@@ -369,10 +364,55 @@ export default class TablesView extends TestCaseView {
       return '';
     }
 
+    const intro = columnsMismatch
+      ? getCodeQuestionL10nValue(this.l10n, 'tableDiffColumnsFirst')
+      : getCodeQuestionL10nValue(this.l10n, 'tableDiffIntro');
+
     return `
-      <p class="tables-diff-intro">${this.escapeHtml(getCodeQuestionL10nValue(this.l10n, 'tableDiffIntro'))}</p>
+      <p class="tables-diff-intro">${this.escapeHtml(intro)}</p>
       <dl class="tables-diff-list">${details.join('')}</dl>
     `;
+  }
+
+  /**
+   * Renders the column mismatch as the root cause of the differences.
+   * @param {object} comparison Comparison result.
+   * @param {string[]} expectedColumns Expected column names.
+   * @param {string[]} actualColumns Column names of the learner's result.
+   * @returns {string} HTML markup.
+   */
+  renderColumnCause(comparison, expectedColumns, actualColumns) {
+    const chips = (columns, missing = []) => columns
+      .map((column) => `<code class="tables-diff-column${missing.includes(column) ? ' is-different' : ''}">${this.escapeHtml(column)}</code>`)
+      .join(' ');
+    const lines = [
+      `<div>${this.escapeHtml(getCodeQuestionL10nValue(this.l10n, 'tableDiffColumnsExpected'))} ${chips(expectedColumns, comparison.missingColumns)}</div>`,
+      `<div>${this.escapeHtml(getCodeQuestionL10nValue(this.l10n, 'tableDiffColumnsActual'))} ${chips(actualColumns, comparison.extraColumns)}</div>`,
+    ];
+
+    return `<div class="tables-diff-item tables-diff-cause"><dt>${this.escapeHtml(getCodeQuestionL10nValue(this.l10n, 'tableDiffColumnsWrong'))}</dt><dd>${lines.join('')}</dd></div>`;
+  }
+
+  /**
+   * Renders rows as a small table.
+   * @param {string[]} columns Column names used as header.
+   * @param {Array<Array>} allRows Row values (only the first rows are shown).
+   * @returns {string} HTML markup.
+   */
+  renderRowsTable(columns, allRows) {
+    const rows = allRows.slice(0, MAX_DIFF_ROWS);
+    const hidden = allRows.length - rows.length;
+    const width = Math.max(columns.length, ...rows.map((row) => row.length));
+    const header = Array.from({ length: width }, (_, index) => `<th>${this.escapeHtml(columns[index] ?? '')}</th>`).join('');
+    const body = rows
+      .map((row) => `<tr>${Array.from({ length: width }, (_, index) => `<td>${this.escapeHtml(row[index] ?? '')}</td>`).join('')}</tr>`)
+      .join('');
+
+    const more = hidden > 0
+      ? `<p class="tables-diff-more">${this.escapeHtml(tCodeQuestion(this.l10n, 'tableDiffMoreRows', { count: hidden }))}</p>`
+      : '';
+
+    return `<table class="tables-diff-rows"><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>${more}`;
   }
 
   renderSummaryItem(label, value) {
@@ -453,7 +493,9 @@ export default class TablesView extends TestCaseView {
   }
 
   formatCellContent(cell, row, role, rowIndex, columnIndex) {
-    const value = this.escapeHtml(cell);
+    const value = cell === null || cell === undefined
+      ? '<em class="table-cell-null">NULL</em>'
+      : this.escapeHtml(cell);
     if (role !== 'answer' || columnIndex !== 0) {
       return `${value}`;
     }

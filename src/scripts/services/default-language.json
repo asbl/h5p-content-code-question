@@ -55,6 +55,11 @@
     "tableDiffRowSummaryValue": "{matching} matching, {missing} missing, {extra} extra",
     "tableDiffColumnSummary": "Columns",
     "tableDiffColumnSummaryValue": "{matching} matching, {missing} missing, {extra} extra",
+    "tableDiffColumnsFirst": "Fix the columns first (SELECT list); the row differences below usually follow from them.",
+    "tableDiffColumnsWrong": "The columns do not match",
+    "tableDiffColumnsExpected": "Expected:",
+    "tableDiffColumnsActual": "Your query returns:",
+    "tableDiffMoreRows": "… and {count} more rows",
     "tableDiffMissingColumns": "Missing columns",
     "tableDiffExtraColumns": "Extra columns",
     "tableDiffMissingRows": "Missing rows",
@@ -95,6 +100,8 @@
     "outputLineCountMismatch": "Your program printed {actual} line(s) of output, but {expected} were expected.",
     "outputLineContentMismatch": "Line {line} differs: expected \"{expected}\", got \"{actual}\".",
     "testFailureReasonGeneric": "The test failed. Check the output and requirements.",
+    "algorithmConstraintTitle": "Task requirement:",
+    "algorithmConstraintMet": "Your code follows the required structure.",
     "algorithmConstraintMismatch": "The structure requirements are not met: {violations}",
     "algorithmConstraintUnknownWithConfigured": "at least one of these requirements is missing: {constraints}",
     "algorithmConstraintNoResultWithConfigured": "the structure check could not be evaluated completely. Active requirements: {constraints}",
@@ -136,7 +143,9 @@
     "constraintExternalAttributeAccess": "the attribute {value} must not be accessed directly from outside the class",
     "constraintAnalysisFailed": "the structure check could not evaluate the code",
     "functionTesterResultMismatch": "The return value does not match the expected result.",
+    "functionTrialHeading": "Trying your function with the example calls (not graded):",
     "functionTesterFailedWithError": "The function call failed with an error: {error}",
+    "functionTesterErrorAtLine": "{error} (line {line})",
     "functionTesterConfigurationFailed": "This test cannot run. {error} This is a problem with the task configuration, not your solution. Please tell your teacher.",
     "functionTesterNoResult": "No result – see the explanation below.",
     "functionTesterInvalidJson": "The test inputs or expected result have not been stored correctly.",
@@ -151,6 +160,8 @@
     "tableDiffRowOrder": "The rows are correct, but in a different order. Check the sorting (ORDER BY).",
     "queryConstraintsTitle": "Requirements for the query",
     "testResultPassed": "passed",
-    "testResultFailed": "not passed"
+    "testResultFailed": "not passed",
+    "testSummary": "{passed} of {total} tests passed",
+    "testSummaryConstraintViolated": "structure requirement not met"
   }
 }

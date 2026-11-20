@@ -238,6 +238,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     error.hidden = true;
     root.hidden = true;
     this.lastExecutionError = null;
+    this.clearRuntimeErrorInEditor();
   }
 
   setExecutionStatus(state, options = {}) {
@@ -259,6 +260,7 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     if (state !== 'error') {
       error.hidden = true;
       this.lastExecutionError = null;
+      this.clearRuntimeErrorInEditor();
     }
 
     if (state === 'error') {
@@ -283,6 +285,43 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
     errorAction.hidden = !this.lastExecutionError.line
       || (this.isPlayerMode() && !this.canTogglePlayerCode());
     errorCard.hidden = false;
+    this.markRuntimeErrorInEditor(executionError);
+  }
+
+  /**
+   * Marks the failing code in the editor so the learner sees where the error is.
+   * @param {{message: string, line: number|null}} executionError Normalized error.
+   * @returns {void}
+   */
+  markRuntimeErrorInEditor(executionError) {
+    const location = this.getRuntimeErrorLocation(executionError);
+    if (!location) {
+      return;
+    }
+
+    const lines = filterLearnerTraceback(executionError.message).split('\n').map((line) => line.trim()).filter(Boolean);
+    this.getEditorManager?.()?.setRuntimeError?.({
+      ...location,
+      message: location.message ?? lines.at(-1) ?? '',
+    });
+  }
+
+  /**
+   * Finds where in the learner code an error occurred. Languages override this.
+   * Uses the innermost frame of the learner's own code, so an error inside a
+   * function is marked where it happens, not at the call.
+   * @param {{message: string, line: number|null}} executionError Normalized error.
+   * @returns {{line?: number, token?: string, message?: string}|null} Location.
+   */
+  getRuntimeErrorLocation(executionError) {
+    const frames = [...String(executionError.message).matchAll(/File "(?:<h5p-learner-code>|<exec>)", line (\d+)/g)];
+    const line = frames.length > 0 ? Number(frames.at(-1)[1]) : executionError.line;
+
+    return Number.isInteger(line) && line > 0 ? { line } : null;
+  }
+
+  clearRuntimeErrorInEditor() {
+    this.getEditorManager?.()?.setRuntimeError?.(null);
   }
 
   normalizeExecutionError(error) {

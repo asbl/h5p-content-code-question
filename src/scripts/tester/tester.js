@@ -1,3 +1,4 @@
+import { renderTestSummary } from './components/test-summary';
 import TestResult from './components/results-tester';
 import TestCasesView from './components/view-tester';
 import TestSession from './components/session-tester';
@@ -139,6 +140,7 @@ export default class CodeTester {
     this.results.setResult(indexNumber, passed);
     this.view.update(indexNumber, output, passed, testPassed ? constraintReason : mismatchReason);
     this.view.updateLearningGoals?.(this.results);
+    renderTestSummary(this.view);
   }
 
   evaluateCompletedTest() {
@@ -215,6 +217,7 @@ export default class CodeTester {
   setAlgorithmConstraintResult(result) {
     this.algorithmConstraintResult = result;
     this.view?.setAlgorithmConstraintResult?.(result);
+    if (this.view) renderTestSummary(this.view);
   }
 
   getAlgorithmConstraintMismatchReason() {

@@ -11,6 +11,61 @@ const getRandomToken = () => (
 );
 
 /**
+ * Builds Python source that, after the learner's code, calls the function with
+ * the visible test cases and prints each call with its result. It is used by
+ * the plain "Run" button so learners can try their function without grading.
+ * @param {string} learnerCode Current learner source.
+ * @param {object} options Options.
+ * @param {string} options.functionName Name of the function under test.
+ * @param {Array} options.testcases Configured test cases.
+ * @param {string} [options.heading] Line printed before the calls.
+ * @param {number} [options.maxCalls] Maximum number of calls.
+ * @returns {string|null} Source to run, or null if no trial applies.
+ */
+export function buildFunctionTrialCode(learnerCode, { functionName, testcases, heading = '', maxCalls = 5 } = {}) {
+  const name = String(functionName || '');
+  const source = String(learnerCode || '');
+  if (!IDENTIFIER_PATTERN.test(name) || !new RegExp(`^\\s*def\\s+${name}\\s*\\(`, 'm').test(source)) {
+    return null;
+  }
+
+  const calls = (Array.isArray(testcases) ? testcases : [])
+    .filter((testCase) => testCase && testCase.hidden !== true)
+    .slice(0, maxCalls)
+    .map((testCase) => {
+      try {
+        const args = (Array.isArray(testCase.arguments) ? testCase.arguments : [])
+          .map((argument) => toPythonLiteral(JSON.parse(normalizeFunctionTestValue(argument?.argument ?? argument))))
+          .join(', ');
+        return `${name}(${args})`;
+      }
+      catch {
+        return null;
+      }
+    })
+    .filter(Boolean);
+
+  if (calls.length === 0) {
+    return null;
+  }
+
+  const lines = ['', '', '# H5P: try the function with the visible test calls'];
+  if (heading) {
+    lines.push(`print(${JSON.stringify(heading)})`);
+  }
+  calls.forEach((call) => {
+    lines.push(
+      'try:',
+      `    print(${JSON.stringify(call)} + " -> " + repr(${call}))`,
+      'except Exception as __h5p_trial_error:',
+      `    print(${JSON.stringify(call)} + " -> " + type(__h5p_trial_error).__name__ + ": " + str(__h5p_trial_error))`,
+    );
+  });
+
+  return `${source}${lines.join('\n')}\n`;
+}
+
+/**
  * Tests a callable supplied by the learner instead of its standard output.
  *
  * The language runtime adds the test harness returned by getTestCode() to the
@@ -132,6 +187,44 @@ export default class FunctionTester extends CodeTester {
       return `print(${marker} + 'configuration:' + ${JSON.stringify(error.message)})\n`;
     }
 
-    return `${String(learnerCode || '')}\n\n# H5P function-test harness\n__h5p_emit = print\ntry:\n    __h5p_function = globals()[${functionName}]\n    __h5p_actual = __h5p_function(${values.argumentsCode})\n    __h5p_expected = ${values.expectedCode}\n    __h5p_emit(${marker} + ('passed:' if __h5p_actual == __h5p_expected else 'failed:') + repr(__h5p_actual))\nexcept Exception as __h5p_error:\n    __h5p_emit(${marker} + 'error:' + type(__h5p_error).__name__)\n`;
+    const source = String(learnerCode || '');
+    const learnerLines = source.split('\n').length;
+    const harness = [
+      '# H5P function-test harness',
+      // The origin line lets the harness map absolute line numbers (which
+      // include any prepended preamble) back to lines of the learner's code.
+      'try:',
+      `    __h5p_origin = __import__('sys')._getframe().f_lineno - ${learnerLines + 4}`,
+      'except Exception:',
+      '    __h5p_origin = None',
+      '__h5p_emit = print',
+      'try:',
+      `    __h5p_function = globals()[${functionName}]`,
+      `    __h5p_actual = __h5p_function(${values.argumentsCode})`,
+      `    __h5p_expected = ${values.expectedCode}`,
+      `    __h5p_emit(${marker} + ('passed:' if __h5p_actual == __h5p_expected else 'failed:') + repr(__h5p_actual))`,
+      'except Exception as __h5p_error:',
+      '    __h5p_text = type(__h5p_error).__name__',
+      '    try:',
+      '        __h5p_message = " ".join(str(__h5p_error).split())',
+      '        if __h5p_message:',
+      '            __h5p_text += ": " + __h5p_message',
+      '    except Exception:',
+      '        pass',
+      '    try:',
+      '        import traceback as __h5p_traceback',
+      '        if __h5p_origin is None:',
+      '            raise ValueError("no line offset")',
+      '        __h5p_frames = __h5p_traceback.extract_tb(__h5p_error.__traceback__)',
+      '        __h5p_own = [f.lineno - __h5p_origin for f in __h5p_frames if f.filename == __h5p_frames[0].filename]',
+      `        __h5p_own = [n for n in __h5p_own if 1 <= n <= ${learnerLines}]`,
+      '        if __h5p_own:',
+      '            __h5p_text += " @" + str(__h5p_own[-1])',
+      '    except Exception:',
+      '        pass',
+      `    __h5p_emit(${marker} + 'error:' + __h5p_text)`,
+    ].join('\n');
+
+    return `${source}\n\n${harness}\n`;
   }
 }

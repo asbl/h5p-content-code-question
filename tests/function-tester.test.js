@@ -55,14 +55,22 @@ describe('FunctionTester', () => {
     tester.view.update(0, [{ status: 'passed', detail: '[False]' }], false);
     tester.view.update(0, [{ status: 'passed', detail: '[False]' }], false);
 
-    expect(view.querySelectorAll('.testcase-reason-row')).toHaveLength(1);
+    // The structure requirement is shown once, separate from the call result.
+    expect(view.querySelector('.testcase-reason-row')).toBeNull();
     expect(view.querySelector('.output').textContent).toBe('[False]');
-    expect(view.querySelector('.testcase-reason-cell').textContent).toContain('Dein Code verwendet eine Liste');
-    expect(view.querySelector('.testcase-reason-cell').textContent).toContain('Aufgabeneinstellungen korrigieren');
+    expect(view.querySelector('.passed').textContent).toBe('✓');
+    const status = view.querySelector('.algorithm-constraint-status');
+    expect(status.classList.contains('is-violated')).toBe(true);
+    expect(status.textContent).toContain('Aufgabenvorgabe');
+    expect(status.textContent).toContain('Dein Code verwendet eine Liste');
+    expect(status.textContent).toContain('Aufgabeneinstellungen korrigieren');
+    expect(view.querySelectorAll('.algorithm-constraint-status')).toHaveLength(1);
 
     tester.view.setAlgorithmConstraintResult({ passed: true, violations: [] });
     tester.view.update(0, [{ status: 'passed', detail: '[False]' }], true);
     expect(view.querySelector('.testcase-reason-row')).toBeNull();
+    expect(view.querySelector('.algorithm-constraint-status').classList.contains('is-met')).toBe(true);
+    expect(view.querySelector('.algorithm-trace').hidden).toBe(true);
   });
 
   it('explains runtime errors and return mismatches even after final evaluation', async () => {
@@ -77,8 +85,67 @@ describe('FunctionTester', () => {
 
     tester.view.setAlgorithmConstraintResult({ violations: ['Forbidden data structure: list'] });
     tester.view.update(0, [{ status: 'failed', detail: '-1' }], false);
-    expect(view.querySelector('.testcase-reason-cell').textContent).toContain('Der Rueckgabewert stimmt nicht');
-    expect(view.querySelector('.testcase-reason-cell').textContent).toContain('Dein Code verwendet eine Liste');
+    expect(view.querySelector('.testcase-reason-cell').textContent).toContain('Der Rückgabewert stimmt nicht');
+    expect(view.querySelector('.testcase-reason-cell').textContent).not.toContain('Dein Code verwendet eine Liste');
+    expect(view.querySelector('.algorithm-constraint-status').textContent).toContain('Dein Code verwendet eine Liste');
+  });
+
+  it('shows the error message and failing line of a crashed call', () => {
+    const tester = createTester();
+    tester.view.l10n = germanLanguage.libraryStrings;
+    const view = tester.view.getDOM();
+    document.body.appendChild(view);
+
+    tester.view.update(0, [{
+      status: 'error',
+      detail: 'IndexError: list index out of range @4\n💡 Hinweis',
+    }], false, null);
+
+    const text = view.querySelector('.testcase-reason-cell').textContent;
+    expect(text).toContain('IndexError: list index out of range (Zeile 4)');
+    expect(text).toContain('💡 Hinweis');
+  });
+
+  it('builds a harness that reports message and line of the learner code', () => {
+    const tester = createTester();
+    const code = tester.getTestCode('def find_index(values, target):\n    return values[99]');
+
+    expect(code).toContain('__h5p_origin');
+    expect(code).toContain('f_lineno - 6');
+    expect(code).toContain('1 <= n <= 2');
+    expect(code).toContain('\'error:\' + __h5p_text');
+  });
+
+  it('builds a trial run that calls the function with the visible test calls only', async () => {
+    const { buildFunctionTrialCode } = await import('../src/scripts/tester/function/tester-function.js');
+    const testcases = [
+      { arguments: [{ argument: '[1, 2, 3]' }, { argument: '2' }], expectedResult: '1' },
+      { arguments: [{ argument: '[9]' }, { argument: '9' }], expectedResult: '0', hidden: true },
+    ];
+
+    const code = buildFunctionTrialCode('def find_index(values, target):\n    return 1', {
+      functionName: 'find_index',
+      testcases,
+      heading: 'Probe',
+    });
+
+    expect(code).toContain('print("Probe")');
+    expect(code).toContain('find_index([1, 2, 3], 2)');
+    expect(code).not.toContain('find_index([9], 9)');
+    expect(buildFunctionTrialCode('x = 1', { functionName: 'find_index', testcases })).toBeNull();
+    expect(buildFunctionTrialCode('def find_index(a): pass', { functionName: 'find_index', testcases: [] })).toBeNull();
+  });
+
+  it('reports the learner line of a crash when the harness runs in CPython, even behind a preamble', () => {
+    const { spawnSync } = require('node:child_process');
+    if (spawnSync('python3', ['--version']).status !== 0) return;
+
+    const tester = createTester();
+    const learner = 'def helper(x):\n    return x[9]\n\ndef find_index(values, target):\n    return helper(values)';
+    const program = `import sys\nprint('preamble')\n\n\n${tester.getTestCode(learner)}`;
+    const output = spawnSync('python3', ['-c', program]).stdout.toString();
+
+    expect(output).toMatch(/:error:IndexError: .* @2\n?$/m);
   });
 
   it('decodes Moodle-escaped JSON for execution and display', () => {

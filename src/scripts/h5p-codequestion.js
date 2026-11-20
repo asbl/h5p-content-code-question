@@ -6,6 +6,7 @@ import {
 import ManualRuntimeFactory from './runtime/factory-runtime-manual';
 import ContainerFactory from './container/factory-container';
 import CodeTesterFactory from './tester/factory-tester';
+import { buildFunctionTrialCode } from './tester/function/tester-function';
 import TestRuntimeFactory from './runtime/factory-runtime-test';
 import { Runtime } from './runtime/runtime';
 import CodeQuestionContainer from './container/codequestion-container';
@@ -785,8 +786,29 @@ export default class CodeQuestion extends H5P.Question {
       this.getManualRuntimeClass(),
       () => this.resizeActionHandler(),
       () => this.shouldStop(),
-      this.getRuntimeOptions()
+      {
+        ...this.getRuntimeOptions(),
+        getFunctionTrialCode: (code) => this.getFunctionTrialCode(code),
+      }
     );
+  }
+
+  /**
+   * For function tasks, "Run" tries the function with the visible test calls
+   * (without grading), because defining a function alone prints nothing.
+   * @param {string} code Learner code.
+   * @returns {string|null} Code to run instead, or null to run the code as it is.
+   */
+  getFunctionTrialCode(code) {
+    if (this.gradingMethod !== 'functionTests') {
+      return null;
+    }
+
+    return buildFunctionTrialCode(code, {
+      functionName: this.params.gradingSettings?.functionName,
+      testcases: this.getTesterTestCases(),
+      heading: getCodeQuestionL10nValue(this.l10n, 'functionTrialHeading'),
+    });
   }
 
   /**
