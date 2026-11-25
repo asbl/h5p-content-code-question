@@ -2315,6 +2315,25 @@ describe('Parsons grading', () => {
       .toEqual(['line_0', 'line_1', 'line_2', 'line_3']);
   });
 
+  it('decodes HTML entities that Moodle stores in Parsons code lines', () => {
+    const question = createParsonsQuestion({
+      gradingSettings: {
+        gradingMethod: 'parsons',
+        parsons: {
+          lines: [
+            { code: 'for zahl in zahlen:' },
+            { code: '    if zahl &gt; groesste and a &amp;&amp; b:' },
+          ],
+        },
+      },
+    });
+
+    expect(question.parsonsMode.settings.lines.map((line) => line.code)).toEqual([
+      'for zahl in zahlen:',
+      '    if zahl > groesste and a && b:',
+    ]);
+  });
+
   it('requires the exact authored order for Parsons grading', () => {
     const question = createParsonsQuestion();
 

@@ -27,7 +27,11 @@ export default class ParsonsMode {
     const lines = rawLines
       .map((line, index) => ({
         id: `line_${index}`,
-        code: typeof line?.code === 'string' ? line.code.replace(/\r\n/g, '\n') : '',
+        // Moodle's H5P validator stores plain text fields HTML-escaped (e.g. `>` as
+        // `&gt;`); decode so the code is shown and graded as authored.
+        code: typeof line?.code === 'string'
+          ? this.question.getDecodedCode(line.code).replace(/\r\n/g, '\n')
+          : '',
       }))
       .filter((line) => line.code.trim() !== '');
 
