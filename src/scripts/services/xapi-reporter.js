@@ -66,6 +66,14 @@ export default class XAPIReporter {
       return question.parsonsMode.currentParsonsOrder.join('[,]');
     }
 
+    if (question.isMatchingQuestion?.()) {
+      return question.matchingMode.getAnswerIds().join('[,]');
+    }
+
+    if (question.isShortAnswerQuestion?.()) {
+      return question.shortAnswerMode.value;
+    }
+
     return question.codeContainer?.getEditorManager?.()?.getCode() || '';
   }
 
@@ -290,6 +298,18 @@ export default class XAPIReporter {
       }));
     }
 
+    if (question.isMatchingQuestion?.()) {
+      def.source = question.matchingMode.settings.pairs.map((pair) => ({
+        id: pair.id,
+        description: { [question.getCodingLanguage()]: pair.left, 'en-US': pair.left },
+      }));
+      def.target = [...new Set(question.matchingMode.settings.pairs.map((pair) => pair.right))]
+        .map((right) => ({
+          id: right,
+          description: { [question.getCodingLanguage()]: right, 'en-US': right },
+        }));
+    }
+
     return def;
   }
 
@@ -306,6 +326,14 @@ export default class XAPIReporter {
 
     if (question.isSortQuestion() || question.isParsonsQuestion()) {
       return 'sequencing';
+    }
+
+    if (question.isMatchingQuestion?.()) {
+      return 'matching';
+    }
+
+    if (question.isShortAnswerQuestion?.()) {
+      return 'fill-in';
     }
 
     return 'other';
@@ -331,6 +359,15 @@ export default class XAPIReporter {
     if (question.isParsonsQuestion()) {
       const correctOrder = question.parsonsMode.getCorrectLineIds();
       return correctOrder.length > 0 ? [correctOrder.join('[,]')] : [];
+    }
+
+    if (question.isMatchingQuestion?.()) {
+      const correct = question.matchingMode.getCorrectAnswerIds();
+      return correct.length > 0 ? [correct.join('[,]')] : [];
+    }
+
+    if (question.isShortAnswerQuestion?.()) {
+      return question.shortAnswerMode.settings.answers;
     }
 
     return ['response code by student'];

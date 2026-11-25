@@ -162,6 +162,15 @@
     "testResultPassed": "bestanden",
     "testResultFailed": "nicht bestanden",
     "testSummary": "{passed} von {total} Tests bestanden",
-    "testSummaryConstraintViolated": "Strukturvorgabe nicht erfüllt"
+    "testSummaryConstraintViolated": "Strukturvorgabe nicht erfüllt",
+    "matchingAnswer": "Paare",
+    "matchingInstructions": "Wähle zu jedem Eintrag die passende Antwort aus.",
+    "matchingChoose": "Auswählen …",
+    "explanationHeading": "Erklärung",
+    "matchingCorrectCount": "{correct} von {total} Paaren sind richtig.",
+    "shortAnswerLabel": "Deine Antwort",
+    "shortAnswerPlaceholder": "Antwort eingeben",
+    "constraintLoopsForbidden": "Schleifen sind nicht erlaubt",
+    "functionTesterOperationLimit": "Das Ergebnis stimmt, aber dein Algorithmus hat {used} Schritte gezählt. Erlaubt sind höchstens {max} Schritte."
   }
 }

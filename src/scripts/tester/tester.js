@@ -199,6 +199,7 @@ export default class CodeTester {
       || constraints.requiredLoop === 'while'
       || Number(constraints.maxLoopCount) > 0
       || Number(constraints.maxLoopNesting) > 0
+      || constraints.forbidLoops === true
       || constraints.requireConditional === true
       || constraints.requireReturn === true
       || constraints.forbidTopLevelAssignments === true

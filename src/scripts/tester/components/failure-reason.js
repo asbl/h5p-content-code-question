@@ -10,6 +10,7 @@ const CONSTRAINT_LABELS = {
   'While loop required': 'constraintWhileLoopRequired',
   'Too many loops': 'constraintTooManyLoops',
   'Loop nesting too deep': 'constraintLoopNestingTooDeep',
+  'Loops are not allowed': 'constraintLoopsForbidden',
   'Conditional required': 'constraintConditionalRequired',
   'Return statement required': 'constraintReturnRequired',
   'Top-level assignments are not allowed': 'constraintTopLevelAssignmentsForbidden',
@@ -96,6 +97,7 @@ function describeConfiguredConstraints(l10n, constraints = {}) {
   [
     ['requireRecursion', 'constraintRecursionRequired'],
     ['requireBaseCase', 'constraintBaseCaseRequired'],
+    ['forbidLoops', 'constraintLoopsForbidden'],
     ['requireConditional', 'constraintConditionalRequired'],
     ['requireReturn', 'constraintReturnRequired'],
     ['forbidTopLevelAssignments', 'constraintTopLevelAssignmentsForbidden'],
@@ -271,6 +273,11 @@ export function describeFailureReason(l10n, reason) {
           ? tCodeQuestion(l10n, configurationErrors[reason.detail])
           : (reason.detail || tCodeQuestion(l10n, 'constraintUnknown')),
       });
+    }
+
+    if (reason.status === 'limit') {
+      const [used = '?', max = '?'] = String(reason.detail || '').split(':');
+      return tCodeQuestion(l10n, 'functionTesterOperationLimit', { used, max });
     }
 
     return tCodeQuestion(l10n, 'functionTesterResultMismatch');

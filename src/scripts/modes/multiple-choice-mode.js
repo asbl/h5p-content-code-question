@@ -1,4 +1,5 @@
 import { getCodeQuestionL10nValue, tCodeQuestion } from '../services/codequestion-l10n';
+import { clearExplanation, normalizeExplanation, showExplanation } from './explanation';
 
 /**
  * Owns configuration, state, scoring and DOM rendering/interaction for the
@@ -33,6 +34,7 @@ export default class MultipleChoiceMode {
     return {
       allowMultiple: settings.allowMultiple === true || hasSeveralCorrectChoices,
       shuffleAnswers: settings.shuffleAnswers === true,
+      explanation: normalizeExplanation(settings.explanation),
       choices,
     };
   }
@@ -242,6 +244,7 @@ export default class MultipleChoiceMode {
       countHint.textContent = this.getCorrectCountHint();
     }
     this.setCorrectCountHintVisible(true);
+    showExplanation(this.question, this.fieldset, this.settings.explanation);
   }
 
   /**
@@ -250,6 +253,7 @@ export default class MultipleChoiceMode {
    */
   clearFeedback() {
     this.setCorrectCountHintVisible(false);
+    clearExplanation(this.fieldset);
   }
 
   /**

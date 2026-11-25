@@ -14,6 +14,8 @@ import CodeQuestionStateService from './services/codequestion-state';
 import MultipleChoiceMode from './modes/multiple-choice-mode';
 import SortItemsMode from './modes/sort-items-mode';
 import ParsonsMode from './modes/parsons-mode';
+import MatchingMode from './modes/matching-mode';
+import ShortAnswerMode from './modes/short-answer-mode';
 import HintCascade from './services/hint-cascade';
 import XAPIReporter from './services/xapi-reporter';
 import InternalFrameResizeSync from './services/internal-frame-resize-sync';
@@ -91,6 +93,8 @@ export default class CodeQuestion extends H5P.Question {
       && this.gradingMethod !== 'multipleChoice'
       && this.gradingMethod !== 'sortItems'
       && this.gradingMethod !== 'parsons'
+      && this.gradingMethod !== 'matching'
+      && this.gradingMethod !== 'shortAnswer'
     ) {
       this.gradingMethod = null;
     }
@@ -123,6 +127,24 @@ export default class CodeQuestion extends H5P.Question {
       this.answerGiven = true;
     }
 
+    // ---- Matching (drop-down pairs) and short answer defaults -------------
+    this.matchingMode = new MatchingMode(
+      this,
+      params.gradingSettings?.matching || {},
+      extras?.previousState?.matchingAnswers,
+    );
+    if (this.isMatchingQuestion() && this.matchingMode.hasAnswer()) {
+      this.answerGiven = true;
+    }
+    this.shortAnswerMode = new ShortAnswerMode(
+      this,
+      params.gradingSettings?.shortAnswer || {},
+      extras?.previousState?.shortAnswer,
+    );
+    if (this.isShortAnswerQuestion() && this.shortAnswerMode.hasAnswer()) {
+      this.answerGiven = true;
+    }
+
     // ---- Didactic hint cascade --------------------------------------------
     this.hintCascade = new HintCascade(
       this,
@@ -150,24 +172,20 @@ export default class CodeQuestion extends H5P.Question {
     this.enableDueDate = params.gradingSettings?.dueDateGroup?.enableDueDate === true;
 
     this.codeTester = this.gradingMethod
-      && !this.isMultipleChoiceQuestion()
-      && !this.isSortQuestion()
-      && !this.isParsonsQuestion()
+      && !this.isAnswerFormQuestion()
       ? this.getCodeTesterFactory().create()
       : null;
 
     // If grading method is unsupported, disable grading safely.
     if (
       this.gradingMethod
-      && !this.isMultipleChoiceQuestion()
-      && !this.isSortQuestion()
-      && !this.isParsonsQuestion()
+      && !this.isAnswerFormQuestion()
       && !this.codeTester
     ) {
       this.gradingMethod = null;
     }
 
-    this.maxScore = (this.isMultipleChoiceQuestion() || this.isSortQuestion() || this.isParsonsQuestion()) ? 1 : 2;
+    this.maxScore = this.isAnswerFormQuestion() ? 1 : 2;
     if (this.usesPartialCredit()) this.maxScore = this.codeTester.results.getMaxScore();
 
     // ---- UI flags -------------------------------------------------------
@@ -180,13 +198,9 @@ export default class CodeQuestion extends H5P.Question {
     // answer" once grading exists. So exactly one of the two is shown,
     // based on whether test cases/grading are configured for this content.
     this.hasCheckButton = Boolean(this.codeTester)
-      || this.isMultipleChoiceQuestion()
-      || this.isSortQuestion()
-      || this.isParsonsQuestion();
+      || this.isAnswerFormQuestion();
     this.hasRunButton = !this.codeTester
-      && !this.isMultipleChoiceQuestion()
-      && !this.isSortQuestion()
-      && !this.isParsonsQuestion();
+      && !this.isAnswerFormQuestion();
     this.hasStopButton = true;
     this.hasTestCaseArea = true;
     this.hasAssets = false;
@@ -219,6 +233,27 @@ export default class CodeQuestion extends H5P.Question {
 
   isParsonsQuestion() {
     return this.gradingMethod === 'parsons';
+  }
+
+  isMatchingQuestion() {
+    return this.gradingMethod === 'matching';
+  }
+
+  isShortAnswerQuestion() {
+    return this.gradingMethod === 'shortAnswer';
+  }
+
+  /**
+   * True for every grading method that is answered in a form instead of
+   * code (multiple choice, sorting, Parsons, matching, short answer).
+   * @returns {boolean} Whether the answer is given without running code.
+   */
+  isAnswerFormQuestion() {
+    return this.isMultipleChoiceQuestion()
+      || this.isSortQuestion()
+      || this.isParsonsQuestion()
+      || this.isMatchingQuestion()
+      || this.isShortAnswerQuestion();
   }
 
   /**
@@ -480,11 +515,7 @@ export default class CodeQuestion extends H5P.Question {
    * event after the test run.
    */
   async checkAction() {
-    if (
-      this.isMultipleChoiceQuestion()
-      || this.isSortQuestion()
-      || this.isParsonsQuestion()
-    ) {
+    if (this.isAnswerFormQuestion()) {
       this.sendAttemptedEvent();
       this.sendAnsweredEvent();
       this.evaluate();
@@ -599,7 +630,17 @@ export default class CodeQuestion extends H5P.Question {
       this.parsonsMode.setLocked(true);
     }
 
-    if (!this.success() && !this.isMultipleChoiceQuestion() && !this.isSortQuestion() && !this.isParsonsQuestion()) {
+    if (this.isMatchingQuestion()) {
+      this.matchingMode.applyFeedback();
+      this.matchingMode.setLocked(true);
+    }
+
+    if (this.isShortAnswerQuestion()) {
+      this.shortAnswerMode.applyFeedback();
+      this.shortAnswerMode.setLocked(true);
+    }
+
+    if (!this.success() && !this.isAnswerFormQuestion()) {
       this.trackFailedCheck();
     }
 
@@ -924,6 +965,14 @@ export default class CodeQuestion extends H5P.Question {
       state.parsonsOrder = this.parsonsMode.currentParsonsOrder;
     }
 
+    if (this.isMatchingQuestion() && this.matchingMode.hasAnswer()) {
+      state.matchingAnswers = { ...this.matchingMode.answers };
+    }
+
+    if (this.isShortAnswerQuestion() && this.shortAnswerMode.hasAnswer()) {
+      state.shortAnswer = this.shortAnswerMode.value;
+    }
+
     if (this.hintCascade?.isEnabled() && this.hintCascade.getHintsRevealed() > 0) {
       state.hintsRevealed = this.hintCascade.getHintsRevealed();
     }
@@ -1132,6 +1181,12 @@ export default class CodeQuestion extends H5P.Question {
     if (this.isParsonsQuestion()) {
       contentDiv.append(this.parsonsMode.render());
     }
+    if (this.isMatchingQuestion()) {
+      contentDiv.append(this.matchingMode.render());
+    }
+    if (this.isShortAnswerQuestion()) {
+      contentDiv.append(this.shortAnswerMode.render());
+    }
     this.parentDiv.append(contentDiv);
 
     if (this.isAssignment()) {
@@ -1318,9 +1373,7 @@ export default class CodeQuestion extends H5P.Question {
     }
     this.addButtons();
     if (
-      !this.isMultipleChoiceQuestion()
-      && !this.isSortQuestion()
-      && !this.isParsonsQuestion()
+      !this.isAnswerFormQuestion()
       && this.hasTestCaseArea
     ) {
       this.parentDiv.append(this.codeTester.view.getDOM());
@@ -1435,6 +1488,12 @@ export default class CodeQuestion extends H5P.Question {
     else if (this.isParsonsQuestion()) {
       score = this.parsonsMode.hasCorrectOrder() ? this.maxScore : 0;
     }
+    else if (this.isMatchingQuestion()) {
+      score = this.matchingMode.hasCorrectMatching() ? this.maxScore : 0;
+    }
+    else if (this.isShortAnswerQuestion()) {
+      score = this.shortAnswerMode.isCorrect() ? this.maxScore : 0;
+    }
     else {
       if (!this.codeTester || typeof this.codeTester.getScore !== 'function') {
         return 0;
@@ -1486,6 +1545,14 @@ export default class CodeQuestion extends H5P.Question {
 
     if (this.isParsonsQuestion()) {
       this.parsonsMode.reset();
+    }
+
+    if (this.isMatchingQuestion()) {
+      this.matchingMode.reset();
+    }
+
+    if (this.isShortAnswerQuestion()) {
+      this.shortAnswerMode.reset();
     }
 
     this.resizeActionHandler();

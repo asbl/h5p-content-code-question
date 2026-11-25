@@ -2563,4 +2563,169 @@ describe('Worked example', () => {
     expect(legacy.getMaxScore()).toBe(2);
   });
 
+  describe('matching grading', () => {
+    beforeEach(() => {
+      mocks.createTester.mockReset();
+    });
+
+    const createMatching = (extras) => new CodeQuestion({
+      contentType: 'text_only',
+      gradingSettings: {
+        gradingMethod: 'matching',
+        matching: {
+          pairs: [
+            { left: '`liste[0]`', right: 'O(1)' },
+            { left: 'eine Schleife', right: 'O(n)' },
+            { left: 'zwei Schleifen ineinander', right: 'O(n²)' },
+            { left: 'ein weiterer Zugriff', right: 'O(1)' },
+          ],
+          distractors: ['O(2ⁿ)'],
+        },
+      },
+    }, 1, extras);
+
+    it('is graded without a code tester and needs every pair', () => {
+      const question = createMatching();
+
+      expect(mocks.createTester).not.toHaveBeenCalled();
+      expect(question.isMatchingQuestion()).toBe(true);
+      expect(question.isAnswerFormQuestion()).toBe(true);
+      expect(question.codeTester).toBeNull();
+      expect(question.hasCheckButton).toBe(true);
+      expect(question.hasRunButton).toBe(false);
+      expect(question.getMaxScore()).toBe(1);
+      expect(question.getScore()).toBe(0);
+
+      question.matchingMode.handleChange('pair_0', 'O(1)');
+      question.matchingMode.handleChange('pair_1', 'O(n)');
+      question.matchingMode.handleChange('pair_2', 'O(2ⁿ)');
+      question.matchingMode.handleChange('pair_3', 'O(1)');
+      expect(question.matchingMode.countCorrect()).toBe(3);
+      expect(question.getScore()).toBe(0);
+
+      question.matchingMode.handleChange('pair_2', 'O(n²)');
+      expect(question.getScore()).toBe(1);
+      expect(question.success()).toBe(true);
+    });
+
+    it('offers each right entry once, including distractors, and keeps ties apart', () => {
+      const question = createMatching();
+
+      expect([...question.matchingMode.rightOrder].sort()).toEqual(['O(1)', 'O(2ⁿ)', 'O(n)', 'O(n²)']);
+    });
+
+    it('persists answers and ignores stale ones', () => {
+      const question = createMatching({
+        previousState: { matchingAnswers: { pair_0: 'O(1)', pair_1: 'gone', unknown: 'O(n)' } },
+      });
+
+      expect(question.matchingMode.answers).toEqual({ pair_0: 'O(1)' });
+      expect(question.answerGiven).toBe(true);
+      expect(question.getState().matchingAnswers).toEqual({ pair_0: 'O(1)' });
+    });
+
+    it('renders one drop-down per pair, restores the choice and resets', () => {
+      const question = createMatching({ previousState: { matchingAnswers: { pair_1: 'O(n)' } } });
+      question.getMarkdownOptions = () => ({});
+      question.appendResolvedMarkdown = (target, markdown) => { target.textContent = markdown.text || ''; };
+      globalThis.H5P.Markdown = class { constructor(text) { this.text = text; } };
+      const fieldset = question.matchingMode.render();
+
+      const selects = fieldset.querySelectorAll('select');
+      expect(selects).toHaveLength(4);
+      expect(selects[1].value).toBe('O(n)');
+      expect(selects[0].querySelectorAll('option')).toHaveLength(5);
+
+      selects[0].value = 'O(1)';
+      selects[0].dispatchEvent(new Event('change'));
+      expect(question.matchingMode.answers.pair_0).toBe('O(1)');
+
+      question.matchingMode.applyFeedback();
+      expect(fieldset.querySelector('.codequestion-matching__count').hidden).toBe(false);
+      question.matchingMode.reset();
+      expect(question.matchingMode.answers).toEqual({});
+      expect(selects[0].value).toBe('');
+    });
+
+    it('reports xAPI matching data', () => {
+      const question = createMatching();
+
+      expect(question.xapiReporter.getxAPIInteractionType()).toBe('matching');
+      expect(question.xapiReporter.getCorrectResponsesPattern()[0]).toContain('pair_2->O(n²)');
+    });
+  });
+
+  describe('short answer grading', () => {
+    beforeEach(() => {
+      mocks.createTester.mockReset();
+    });
+
+    const createShort = (shortAnswer, extras) => new CodeQuestion({
+      contentType: 'text_only',
+      gradingSettings: { gradingMethod: 'shortAnswer', shortAnswer },
+    }, 1, extras);
+
+    it('accepts numbers with a decimal comma and the configured tolerance', () => {
+      const question = createShort({ answers: ['999'], tolerance: 0.5 });
+      const mode = question.shortAnswerMode;
+
+      expect(mocks.createTester).not.toHaveBeenCalled();
+      expect(question.isShortAnswerQuestion()).toBe(true);
+      expect(mode.isCorrect('999')).toBe(true);
+      expect(mode.isCorrect(' 999,4 ')).toBe(true);
+      expect(mode.isCorrect('1 000')).toBe(false);
+      expect(mode.isCorrect('neunhundert')).toBe(false);
+      expect(mode.isCorrect('')).toBe(false);
+    });
+
+    it('accepts the configured unit typed behind the value', () => {
+      const mode = createShort({ answers: ['999'], unit: 'Vergleiche' }).shortAnswerMode;
+
+      expect(mode.isCorrect('999 Vergleiche')).toBe(true);
+      expect(mode.isCorrect('999vergleiche')).toBe(true);
+      expect(mode.isCorrect('998 Vergleiche')).toBe(false);
+    });
+
+    it('compares text without case, spaces and superscript notation', () => {
+      const question = createShort({ answers: ['O(n²)'] });
+      const mode = question.shortAnswerMode;
+
+      ['O(n²)', 'o(n^2)', ' O ( n ^ 2 ) '].forEach((text) => expect(mode.isCorrect(text)).toBe(true));
+      expect(mode.isCorrect('O(n)')).toBe(false);
+      expect(createShort({ answers: ['A'], ignoreCase: false }).shortAnswerMode.isCorrect('a')).toBe(false);
+    });
+
+    it('scores, persists and reports through xAPI', () => {
+      const question = createShort({ answers: ['3', 'drei'] }, { previousState: { shortAnswer: 'Drei' } });
+
+      expect(question.answerGiven).toBe(true);
+      expect(question.getState().shortAnswer).toBe('Drei');
+      expect(question.getScore()).toBe(1);
+      question.shortAnswerMode.value = '4';
+      expect(question.getScore()).toBe(0);
+      expect(question.xapiReporter.getxAPIInteractionType()).toBe('fill-in');
+      expect(question.xapiReporter.getCorrectResponsesPattern()).toEqual(['3', 'drei']);
+    });
+
+    it('submits with Enter and clears on reset', () => {
+      const question = createShort({ answers: ['3'], unit: 'Schritte' });
+      question.checkAction = vi.fn();
+      const fieldset = question.shortAnswerMode.render();
+      const input = fieldset.querySelector('input');
+
+      input.value = '3';
+      input.dispatchEvent(new Event('input'));
+      expect(question.answerGiven).toBe(true);
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+      expect(question.checkAction).toHaveBeenCalled();
+      expect(fieldset.textContent).toContain('Schritte');
+
+      question.shortAnswerMode.applyFeedback();
+      expect(fieldset.classList.contains('is-correct')).toBe(true);
+      question.shortAnswerMode.reset();
+      expect(input.value).toBe('');
+      expect(fieldset.classList.contains('is-correct')).toBe(false);
+    });
+  });
+
 });

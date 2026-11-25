@@ -119,7 +119,7 @@ export default class FunctionTester extends CodeTester {
     const index = this.resultTokens.get(token);
     if (!token || (index === undefined && token !== this.resultToken)) return;
 
-    if (!['passed', 'failed', 'error', 'configuration'].includes(status)) return;
+    if (!['passed', 'failed', 'limit', 'error', 'configuration'].includes(status)) return;
 
     const testCaseIndex = index ?? this.session.testCaseIndex;
     const output = [{
@@ -187,6 +187,8 @@ export default class FunctionTester extends CodeTester {
       return `print(${marker} + 'configuration:' + ${JSON.stringify(error.message)})\n`;
     }
 
+    const maxOperations = Math.floor(Number(testCase.maxOperations));
+    const hasOperationLimit = Number.isFinite(maxOperations) && maxOperations > 0;
     const source = String(learnerCode || '');
     const learnerLines = source.split('\n').length;
     const harness = [
@@ -200,9 +202,19 @@ export default class FunctionTester extends CodeTester {
       '__h5p_emit = print',
       'try:',
       `    __h5p_function = globals()[${functionName}]`,
+      ...(hasOperationLimit ? ['    ops.reset()'] : []),
       `    __h5p_actual = __h5p_function(${values.argumentsCode})`,
       `    __h5p_expected = ${values.expectedCode}`,
-      `    __h5p_emit(${marker} + ('passed:' if __h5p_actual == __h5p_expected else 'failed:') + repr(__h5p_actual))`,
+      ...(hasOperationLimit
+        ? [
+          `    if __h5p_actual == __h5p_expected and ops.total > ${maxOperations}:`,
+          `        __h5p_emit(${marker} + 'limit:' + str(ops.total) + ':' + '${maxOperations}')`,
+          '    else:',
+          `        __h5p_emit(${marker} + ('passed:' if __h5p_actual == __h5p_expected else 'failed:') + repr(__h5p_actual))`,
+        ]
+        : [
+          `    __h5p_emit(${marker} + ('passed:' if __h5p_actual == __h5p_expected else 'failed:') + repr(__h5p_actual))`,
+        ]),
       'except Exception as __h5p_error:',
       '    __h5p_text = type(__h5p_error).__name__',
       '    try:',

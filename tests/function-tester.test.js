@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import FunctionTester from '../src/scripts/tester/function/tester-function.js';
@@ -291,4 +292,54 @@ describe('FunctionTester', () => {
     expect(code).toContain('configuration:');
     expect(code).toContain('valid Python function name');
   });
+
+  describe('operation limit', () => {
+    const buildTester = (testCase) => {
+      const tester = new FunctionTester([testCase], 'functionTests', vi.fn(), vi.fn(), {}, null, false, null, 'zaehle');
+      tester.session.getCurrentTestCase = () => testCase;
+      tester.session.getCurrentTestCaseIndexNumber = () => 0;
+      return tester;
+    };
+    const opsStub = 'class _O:\n    total = 0\n    def reset(self):\n        self.total = 0\n    def count(self):\n        self.total += 1\nops = _O()\n';
+
+    const run = (testCase, learner) => {
+      const tester = buildTester(testCase);
+      const code = tester.getTestCode(`${opsStub}${learner}`);
+      const output = execFileSync('python3', ['-c', code], { encoding: 'utf8' });
+      const line = output.split('\n').find((entry) => entry.startsWith('__H5P_FUNCTION_TEST_RESULT__:'));
+      const [, status, ...detail] = line.split(':').slice(1).join(':').split(':').length ? line.split(':') : [];
+      return { status: line.split(':')[2], detail: detail.join(':'), line };
+    };
+
+    const learner = 'def zaehle(n):\n    for _ in range(n):\n        ops.count()\n    return n\n';
+
+    it('passes when the counted steps stay within the limit', () => {
+      const { status } = run({ arguments: ['5'], expectedResult: '5', maxOperations: 5 }, learner);
+      expect(status).toBe('passed');
+    });
+
+    it('fails a correct result that used too many steps', () => {
+      const { status, line } = run({ arguments: ['9'], expectedResult: '9', maxOperations: 5 }, learner);
+      expect(status).toBe('limit');
+      expect(line.endsWith(':limit:9:5')).toBe(true);
+    });
+
+    it('keeps the plain result check when no limit is configured', () => {
+      const tester = buildTester({ arguments: ['9'], expectedResult: '9' });
+      expect(tester.getTestCode(learner)).not.toContain('ops.reset()');
+    });
+
+    it('explains the limit in the failure reason', () => {
+      const tester = buildTester({ arguments: ['9'], expectedResult: '9', maxOperations: 5 });
+      tester.view.l10n = germanLanguage.libraryStrings;
+      const view = tester.view.getDOM();
+      document.body.appendChild(view);
+      tester.view.update(0, [{ status: 'limit', detail: '9:5' }], false, {
+        type: 'functionResultMismatch', status: 'limit', detail: '9:5',
+      });
+      expect(view.textContent).toContain('9 Schritte');
+      expect(view.textContent).toContain('höchstens 5');
+    });
+  });
 });
+

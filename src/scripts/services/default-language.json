@@ -162,6 +162,15 @@
     "testResultPassed": "passed",
     "testResultFailed": "not passed",
     "testSummary": "{passed} of {total} tests passed",
-    "testSummaryConstraintViolated": "structure requirement not met"
+    "testSummaryConstraintViolated": "structure requirement not met",
+    "matchingAnswer": "Pairs",
+    "matchingInstructions": "Choose the matching answer for every entry.",
+    "matchingChoose": "Choose …",
+    "explanationHeading": "Explanation",
+    "matchingCorrectCount": "{correct} of {total} pairs are correct.",
+    "shortAnswerLabel": "Your answer",
+    "shortAnswerPlaceholder": "Type your answer",
+    "constraintLoopsForbidden": "loops are not allowed",
+    "functionTesterOperationLimit": "The result is correct, but your algorithm counted {used} steps. At most {max} are allowed for this test."
   }
 }

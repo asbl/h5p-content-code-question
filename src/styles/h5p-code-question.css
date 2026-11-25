@@ -1760,3 +1760,96 @@
 .h5p-codequestion .testcases-area:empty {
     display: none;
 }
+
+/* Matching and short answer grading methods */
+.h5p-codequestion .codequestion-matching,
+.h5p-codequestion .codequestion-short-answer {
+    border: 0;
+    margin: 16px 0;
+    padding: 0;
+}
+
+.h5p-codequestion .codequestion-matching__hint,
+.h5p-codequestion .codequestion-matching__count {
+    margin: 0 0 8px;
+    color: #334155;
+    font-style: italic;
+}
+
+.h5p-codequestion .codequestion-matching-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(10rem, 16rem);
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0;
+    padding: 10px 12px;
+    border: 1px solid #d7dde8;
+    border-radius: 8px;
+    background: #fff;
+    color: #0f172a;
+}
+
+.h5p-codequestion .codequestion-matching-row__left > *:first-child {
+    margin-top: 0;
+}
+
+.h5p-codequestion .codequestion-matching-row__left > *:last-child {
+    margin-bottom: 0;
+}
+
+.h5p-codequestion .codequestion-matching-row__select,
+.h5p-codequestion .codequestion-short-answer__input {
+    padding: 8px 10px;
+    border: 1px solid #b6c0cf;
+    border-radius: 6px;
+    background: #fff;
+    color: #0f172a;
+    font: inherit;
+}
+
+.h5p-codequestion .codequestion-short-answer__input {
+    width: min(100%, 24rem);
+}
+
+.h5p-codequestion .codequestion-short-answer__unit {
+    margin-left: 8px;
+    color: #334155;
+}
+
+.h5p-codequestion .codequestion-short-answer.is-correct .codequestion-short-answer__input {
+    border-color: #1d7a3a;
+    box-shadow: 0 0 0 2px rgba(29, 122, 58, 0.18);
+}
+
+.h5p-codequestion .codequestion-short-answer.is-wrong .codequestion-short-answer__input {
+    border-color: #b42318;
+    box-shadow: 0 0 0 2px rgba(180, 35, 24, 0.14);
+}
+
+@media (max-width: 560px) {
+    .h5p-codequestion .codequestion-matching-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.h5p-codequestion .codequestion-explanation {
+  margin-top: 0.75em;
+  padding: 0.6em 0.8em;
+  border-left: 4px solid var(--h5p-codequestion-explanation-accent, #2f6fb3);
+  border-radius: 0 4px 4px 0;
+  background: var(--h5p-codequestion-explanation-bg, rgba(47, 111, 179, 0.08));
+  color: inherit;
+}
+
+.h5p-codequestion .codequestion-explanation__heading {
+  display: block;
+  margin-bottom: 0.25em;
+}
+
+.h5p-codequestion .codequestion-explanation__body > :first-child {
+  margin-top: 0;
+}
+
+.h5p-codequestion .codequestion-explanation__body > :last-child {
+  margin-bottom: 0;
+}
