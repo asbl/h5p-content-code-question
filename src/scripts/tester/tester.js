@@ -141,6 +141,16 @@ export default class CodeTester {
     this.view.update(indexNumber, output, passed, testPassed ? constraintReason : mismatchReason);
     this.view.updateLearningGoals?.(this.results);
     renderTestSummary(this.view);
+
+    // Reporting hook (xAPI per test case, analytics): must never break grading.
+    if (typeof this.onTestCaseResult === 'function') {
+      try {
+        this.onTestCaseResult(indexNumber, passed, testCase);
+      }
+      catch (hookError) {
+        logCodeQuestionDiagnostic(this.options, DEBUG_PREFIX, 'test case result hook failed', hookError);
+      }
+    }
   }
 
   evaluateCompletedTest() {

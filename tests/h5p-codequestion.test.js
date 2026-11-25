@@ -69,6 +69,54 @@ describe('CodeQuestion', () => {
     expect(mocks.createTester).not.toHaveBeenCalled();
   });
 
+  it('wires per-test-case xAPI reporting and restores persisted test results', () => {
+    const tester = {
+      getScore: vi.fn(() => 0),
+      reset: vi.fn(),
+      results: {
+        restoreResults: vi.fn(),
+        hasAnyResult: vi.fn(() => true),
+        getResults: vi.fn(() => [1, 0]),
+      },
+      view: { getDOM: () => document.createElement('div') },
+    };
+    mocks.createTester.mockReturnValue(tester);
+
+    const question = new CodeQuestion({
+      gradingSettings: { gradingMethod: 'ioTestCases', testCases: [{ inputs: [] }, { inputs: [] }] },
+    }, 7, { previousState: { testResults: [1, 0] } });
+
+    expect(tester.onTestCaseResult).toBeTypeOf('function');
+    expect(tester.results.restoreResults).toHaveBeenCalledWith([1, 0]);
+
+    const sent = [];
+    question.xapiReporter.sendTestCaseEvent = vi.fn((index, passed, testCase) => sent.push([index, passed, testCase]));
+    tester.onTestCaseResult(1, false, { name: 'Second' });
+    expect(sent).toEqual([[1, false, { name: 'Second' }]]);
+
+    expect(question.getState().testResults).toEqual([1, 0]);
+  });
+
+  it('omits testResults from state when nothing passed yet', () => {
+    const tester = {
+      getScore: vi.fn(() => 0),
+      reset: vi.fn(),
+      results: {
+        restoreResults: vi.fn(),
+        hasAnyResult: vi.fn(() => false),
+        getResults: vi.fn(() => [0]),
+      },
+      view: { getDOM: () => document.createElement('div') },
+    };
+    mocks.createTester.mockReturnValue(tester);
+
+    const question = new CodeQuestion({
+      gradingSettings: { gradingMethod: 'ioTestCases', testCases: [{ inputs: [] }] },
+    }, 8);
+
+    expect(question.getState()?.testResults).toBeUndefined();
+  });
+
   describe.each(['multipleChoice', 'sortItems', 'ioTestCases'])('deadline scoring for %s', (gradingMethod) => {
     const createQuestion = (dueDateGroup) => {
       const question = new CodeQuestion({

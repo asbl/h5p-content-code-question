@@ -114,6 +114,71 @@ export default class XAPIReporter {
   }
 
   /**
+   * Sends one xAPI "interacted" statement per graded test case, with the test
+   * case as a sub-activity of the question. Hidden test cases never expose
+   * their name, learning goal or expected output.
+   * @param {number} index - Zero-based test case index.
+   * @param {boolean} passed - Whether the test case passed.
+   * @param {object} [testCase] - The authored test case entry.
+   * @returns {void}
+   */
+  sendTestCaseEvent(index, passed, testCase = {}) {
+    const question = this.question;
+
+    if (typeof question.createXAPIEventTemplate !== 'function' || typeof question.trigger !== 'function') {
+      return;
+    }
+
+    const ev = this.createBaseXAPIEvent('interacted');
+    const statement = ev.data.statement;
+    const parentId = statement.object?.id;
+    const weight = Number(question.codeTester?.results?.weights?.[index] ?? testCase?.weight ?? 1) || 1;
+    const hidden = testCase?.hidden === true;
+    const language = typeof question.getCodingLanguage === 'function' ? question.getCodingLanguage() : 'en-US';
+    const fallbackName = `Test case ${index + 1}`;
+    const name = hidden ? fallbackName : String(testCase?.name || fallbackName);
+    const learningGoal = hidden ? '' : String(testCase?.learningGoal || '');
+
+    statement.object = {
+      id: `${parentId}#testcase-${index + 1}`,
+      objectType: 'Activity',
+      definition: {
+        name: { [language]: name, 'en-US': name },
+        description: { [language]: learningGoal, 'en-US': learningGoal },
+        type: 'http://adlnet.gov/expapi/activities/cmi.interaction',
+        interactionType: 'other',
+      },
+    };
+
+    statement.result = {
+      completion: true,
+      success: passed === true,
+      score: {
+        raw: passed === true ? weight : 0,
+        min: 0,
+        max: weight,
+        scaled: passed === true ? 1 : 0,
+      },
+      extensions: {
+        'https://opencoding.de/xapi/extension/testcase/index': index + 1,
+        'https://opencoding.de/xapi/extension/testcase/name': hidden ? '' : String(testCase?.name || ''),
+        'https://opencoding.de/xapi/extension/testcase/learning-goal': hidden ? '' : String(testCase?.learningGoal || ''),
+        'https://opencoding.de/xapi/extension/testcase/hidden': hidden,
+        'https://opencoding.de/xapi/extension/testcase/weight': weight,
+      },
+    };
+
+    statement.context = statement.context || {};
+    statement.context.contextActivities = {
+      parent: [{ objectType: 'Activity', id: parentId }],
+    };
+
+    statement.id = `interacted-testcase-${index + 1}-${H5P.createUUID()}`;
+
+    this.question.trigger(ev);
+  }
+
+  /**
    * Returns xAPI statement data for answered events.
    * Used by Moodle reporting without sending an event.
    * @returns {object} xAPI statement object

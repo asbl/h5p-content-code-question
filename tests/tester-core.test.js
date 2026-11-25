@@ -73,6 +73,31 @@ describe('CodeTester core edge cases', () => {
     warnSpy.mockRestore();
   });
 
+  it('reports each graded test case through the onTestCaseResult hook', async () => {
+    const onTestCaseResult = vi.fn();
+    const tester = new TestCodeTester(
+      [{ inputs: [], name: 'Adds', learningGoal: 'addition', weight: 3 }],
+      'ioTestCases', vi.fn(), vi.fn(), {}, null, false,
+    );
+    tester.onTestCaseResult = onTestCaseResult;
+
+    await tester.evaluateTestCase();
+
+    expect(onTestCaseResult).toHaveBeenCalledTimes(1);
+    expect(onTestCaseResult).toHaveBeenCalledWith(0, true, expect.objectContaining({ name: 'Adds' }));
+  });
+
+  it('keeps grading intact when the result hook throws', async () => {
+    const tester = new TestCodeTester(
+      [{ inputs: [] }], 'ioTestCases', vi.fn(), vi.fn(), {}, null, false,
+    );
+    tester.onTestCaseResult = () => { throw new Error('boom'); };
+
+    await tester.evaluateTestCase();
+
+    expect(tester.results.getResults()).toEqual([1]);
+  });
+
   it('writes diagnostic logs only when enabled', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const tester = new TestCodeTester(

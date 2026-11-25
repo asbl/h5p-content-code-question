@@ -38,6 +38,36 @@ export default class TestResult {
   }
 
   /**
+   * Returns a copy of the per-test-case results (1 passed, 0 failed/not run).
+   * @returns {number[]} Result flags in test-case order.
+   */
+  getResults() {
+    return [...this.results];
+  }
+
+  /**
+   * Indicates whether at least one test case has passed.
+   * @returns {boolean} True when any result flag is set.
+   */
+  hasAnyResult() {
+    return this.results.some((result) => result === 1);
+  }
+
+  /**
+   * Restores persisted per-test-case results (e.g. from a previous session).
+   * Only 0/1 flags within the test-case range are accepted.
+   * @param {Array<*>} results - Persisted result flags.
+   * @returns {void}
+   */
+  restoreResults(results = []) {
+    if (!Array.isArray(results)) {
+      return;
+    }
+
+    this.results = this.results.map((_, index) => (results[index] === 1 ? 1 : 0));
+  }
+
+  /**
    * Calculates the total score of the test run.
    * @returns {number} The number of test cases that passed.
    */

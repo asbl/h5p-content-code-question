@@ -197,6 +197,7 @@ export default class CodeQuestion extends H5P.Question {
 
     this.xAPIlastEvent = null;
     this.xapiReporter = new XAPIReporter(this);
+    this.wireCodeTester(this.codeTester);
 
     this.codeContainers = new Map();
     this.stateService = new CodeQuestionStateService();
@@ -395,6 +396,37 @@ export default class CodeQuestion extends H5P.Question {
    */
   getXAPIData() {
     return this.xapiReporter.getXAPIData();
+  }
+
+  /**
+   * Wires per-test-case reporting and session restore onto a code tester.
+   * Subclasses that recreate the tester (e.g. for their own l10n) must call
+   * this again for the new instance.
+   * @param {object|null} tester - Code tester instance, if any.
+   * @returns {void}
+   */
+  wireCodeTester(tester) {
+    if (!tester) {
+      return;
+    }
+
+    tester.onTestCaseResult = (index, passed, testCase) => this.sendTestCaseXAPIEvent(index, passed, testCase);
+
+    const previousTestResults = this.extras?.previousState?.testResults;
+    if (Array.isArray(previousTestResults)) {
+      tester.results?.restoreResults?.(previousTestResults);
+    }
+  }
+
+  /**
+   * Sends one xAPI "interacted" statement for a graded test case.
+   * @param {number} index - Zero-based test case index.
+   * @param {boolean} passed - Whether the test case passed.
+   * @param {object} [testCase] - The authored test case entry.
+   * @returns {void}
+   */
+  sendTestCaseXAPIEvent(index, passed, testCase) {
+    this.xapiReporter?.sendTestCaseEvent(index, passed, testCase);
   }
 
   /**
@@ -902,6 +934,10 @@ export default class CodeQuestion extends H5P.Question {
 
     if (this.workedExampleRevealed) {
       state.workedExampleRevealed = true;
+    }
+
+    if (this.codeTester?.results?.hasAnyResult?.()) {
+      state.testResults = this.codeTester.results.getResults();
     }
 
     return Object.keys(state).length > 0 ? state : undefined;
