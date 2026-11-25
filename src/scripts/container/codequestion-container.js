@@ -360,6 +360,17 @@ export default class CodeQuestionContainer extends H5P.CodeContainer {
       return directLine;
     }
 
+    // Prefer the innermost learner frame of a traceback; runtime-internal
+    // frames come first and must not be mistaken for the error line.
+    const frameLines = [...filterLearnerTraceback(String(message || ''))
+      .matchAll(/File "[^"]*", line (\d+)/g)];
+    if (frameLines.length) {
+      const frameLine = Number(frameLines.at(-1)[1]);
+      if (Number.isInteger(frameLine) && frameLine > 0) {
+        return frameLine;
+      }
+    }
+
     const lineMatch = String(message || '').match(
       /(?:line|zeile)\s*[:#]?\s*(\d+)|<exec>\s*,\s*line\s+(\d+)|File\s+"<[^"]+>"\s*,\s*line\s+(\d+)/i,
     );
