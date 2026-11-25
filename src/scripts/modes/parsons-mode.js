@@ -1,4 +1,5 @@
 import { getCodeQuestionL10nValue, tCodeQuestion } from '../services/codequestion-l10n';
+import { clearExplanation, normalizeExplanation, showExplanation } from './explanation';
 
 /**
  * Owns configuration, state, scoring and DOM rendering/interaction for the
@@ -30,7 +31,7 @@ export default class ParsonsMode {
       }))
       .filter((line) => line.code.trim() !== '');
 
-    return { lines };
+    return { lines, explanation: normalizeExplanation(settings.explanation) };
   }
 
   /**
@@ -320,6 +321,7 @@ export default class ParsonsMode {
       return;
     }
 
+    showExplanation(this.question, this.parsonsFieldset, this.settings.explanation);
     const correctOrder = this.getCorrectLineIds();
 
     this.currentParsonsOrder.forEach((lineId, index) => {
@@ -350,6 +352,7 @@ export default class ParsonsMode {
    * @returns {void}
    */
   clearFeedback() {
+    clearExplanation(this.parsonsFieldset);
     this.parsonsItemElements?.forEach((element) => {
       element.classList.remove('codequestion-parsons-item--correct', 'codequestion-parsons-item--incorrect');
       const state = element.querySelector('.codequestion-parsons-item__state');

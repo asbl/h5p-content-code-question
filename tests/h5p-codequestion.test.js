@@ -1951,6 +1951,21 @@ describe('CodeQuestion', () => {
     }
   });
 
+  it('shows the authored explanation after checking a sort question', () => {
+    const question = new CodeQuestion({
+      contentType: 'text_only',
+      gradingSettings: {
+        gradingMethod: 'sortItems',
+        sortItems: {
+          items: [{ text: 'First' }, { text: 'Second' }],
+          explanation: 'Reihenfolge erklaert',
+        },
+      },
+    }, 1);
+
+    expect(question.sortItemsMode.settings.explanation).toBe('Reihenfolge erklaert');
+  });
+
   it('persists sort order state and exposes sequencing xAPI metadata', () => {
     const question = new CodeQuestion({
       gradingSettings: {

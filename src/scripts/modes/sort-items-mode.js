@@ -1,4 +1,5 @@
 import { getCodeQuestionL10nValue, tCodeQuestion } from '../services/codequestion-l10n';
+import { clearExplanation, normalizeExplanation, showExplanation } from './explanation';
 
 /**
  * Owns configuration, state, scoring and DOM rendering/interaction for the
@@ -29,7 +30,7 @@ export default class SortItemsMode {
       }))
       .filter((item) => item.text.trim() !== '');
 
-    return { items };
+    return { items, explanation: normalizeExplanation(settings.explanation) };
   }
 
   /**
@@ -319,6 +320,7 @@ export default class SortItemsMode {
       return;
     }
 
+    showExplanation(this.question, this.sortFieldset, this.settings.explanation);
     const correctOrder = this.getCorrectItemIds();
 
     this.currentSortOrder.forEach((itemId, index) => {
@@ -349,6 +351,7 @@ export default class SortItemsMode {
    * @returns {void}
    */
   clearFeedback() {
+    clearExplanation(this.sortFieldset);
     this.sortItemElements?.forEach((element) => {
       element.classList.remove('codequestion-sort-item--correct', 'codequestion-sort-item--incorrect');
       const state = element.querySelector('.codequestion-sort-item__state');
