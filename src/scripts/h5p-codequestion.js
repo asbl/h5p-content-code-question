@@ -8,6 +8,7 @@ import ContainerFactory from './container/factory-container';
 import CodeTesterFactory from './tester/factory-tester';
 import { buildFunctionTrialCode } from './tester/function/tester-function';
 import TestRuntimeFactory from './runtime/factory-runtime-test';
+import DateHandler, { isSetDueDate } from './tester/components/date-handler';
 import { Runtime } from './runtime/runtime';
 import CodeQuestionContainer from './container/codequestion-container';
 import CodeQuestionStateService from './services/codequestion-state';
@@ -169,7 +170,8 @@ export default class CodeQuestion extends H5P.Question {
       this.solutionCode = params.gradingSettings.solution;
     }
     this.dueDate = params.gradingSettings?.dueDateGroup?.duedate || null;
-    this.enableDueDate = params.gradingSettings?.dueDateGroup?.enableDueDate === true;
+    this.enableDueDate = params.gradingSettings?.dueDateGroup?.enableDueDate === true
+      && isSetDueDate(this.dueDate);
 
     this.codeTester = this.gradingMethod
       && !this.isAnswerFormQuestion()
@@ -1172,6 +1174,9 @@ export default class CodeQuestion extends H5P.Question {
     const contentPartsDiv = this.renderContentParts();
 
     contentDiv.append(contentPartsDiv);
+    if (this.needsDeadlineNotice() && this.enableDueDate) {
+      contentDiv.append(new DateHandler(this.dueDate, this.l10n).getDueDateMeta());
+    }
     if (this.isMultipleChoiceQuestion()) {
       contentDiv.append(this.multipleChoiceMode.render());
     }
@@ -1212,6 +1217,25 @@ export default class CodeQuestion extends H5P.Question {
     this.setContent(this.parentDiv);
     this.applyQuestionRootClass();
     this.setupInternalFrameResizeSync();
+  }
+
+  /**
+   * Code tasks show the deadline in their test case view. Task types without
+   * one need a separate notice, because late submissions are capped there as
+   * well. Subclasses with their own grading view override this.
+   * @returns {boolean} True if the deadline is not shown elsewhere.
+   */
+  needsDeadlineNotice() {
+    return this.isAnswerFormQuestion();
+  }
+
+  /**
+   * Caps the score of a submission made after the deadline at half points.
+   * @param {number} score Score of the submission.
+   * @returns {number} Score that counts.
+   */
+  applyLateSubmissionCap(score) {
+    return this.isLateSubmission() ? Math.min(score, this.maxScore / 2) : score;
   }
 
   applyQuestionRootClass() {
@@ -1503,10 +1527,7 @@ export default class CodeQuestion extends H5P.Question {
         : this.codeTester.getScore() * 2;
     }
 
-    if (this.isLateSubmission()) {
-      score = Math.min(score, this.maxScore / 2);
-    }
-    return Math.min(score, this.maxScore);
+    return Math.min(this.applyLateSubmissionCap(score), this.maxScore);
   }
 
   getMaxScore() {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   createTester: vi.fn(),
@@ -146,6 +146,8 @@ describe('CodeQuestion', () => {
       ['2026-10-23T12:00:01', true, '2026-10-23T12:00:00', 0.5],
       ['2026-10-23T12:00:01', false, '2026-10-23T12:00:00', 1],
       ['2026-10-23T12:00:01', true, undefined, 1],
+      ['2026-10-23T12:00:01', true, '01.01.1970', 1],
+      ['2026-10-23T12:00:01', true, '01.01.1970 00:00:00', 1],
     ])('scores at %s with enabled=%s and deadline=%s', (now, enableDueDate, duedate, fraction) => {
       vi.useFakeTimers();
       try {
@@ -163,6 +165,69 @@ describe('CodeQuestion', () => {
       finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('deadline notice for tasks without an editor', () => {
+    let previousMarkdown;
+
+    beforeEach(() => {
+      previousMarkdown = globalThis.H5P.Markdown;
+      globalThis.H5P.Markdown = class {
+        getMarkdownDiv() {
+          return document.createElement('div');
+        }
+
+        replaceMarkdown() {
+          return Promise.resolve(this.getMarkdownDiv());
+        }
+      };
+    });
+
+    afterEach(() => {
+      globalThis.H5P.Markdown = previousMarkdown;
+    });
+
+    const render = (gradingMethod, dueDateGroup) => {
+      const question = new CodeQuestion({
+        contentType: 'text_only',
+        gradingSettings: {
+          gradingMethod,
+          dueDateGroup,
+          multipleChoice: { choices: [{ text: 'a', correct: true }] },
+          sortItems: { items: [{ text: 'a' }, { text: 'b' }] },
+          parsons: { lines: [{ code: 'a = 1' }, { code: 'b = 2' }] },
+          matching: { pairs: [{ left: 'a', right: '1' }, { left: 'b', right: '2' }] },
+          shortAnswer: { answers: ['4'] },
+        },
+      }, 1);
+      question.setContent = vi.fn();
+      question.addButton = vi.fn();
+      question.renderContentParts = () => document.createElement('div');
+      question.setupInternalFrameResizeSync = vi.fn();
+      question.registerDomElements();
+      return question.parentDiv.querySelectorAll('.due-date-meta');
+    };
+
+    it.each(['multipleChoice', 'sortItems', 'parsons', 'matching', 'shortAnswer'])(
+      'shows the deadline once for %s',
+      (gradingMethod) => {
+        const notices = render(gradingMethod, { enableDueDate: true, duedate: '2026-12-24T11:00:00.000Z' });
+
+        expect(notices).toHaveLength(1);
+        expect(notices[0].querySelector('.due-date-notice').textContent).not.toBe('');
+      },
+    );
+
+    it.each([
+      { enableDueDate: false, duedate: '2026-12-24T11:00:00.000Z' },
+      { enableDueDate: true },
+      { enableDueDate: true, duedate: '01.01.1970' },
+      { enableDueDate: true, duedate: '01.01.1970 00:00:00' },
+      { enableDueDate: true, duedate: 'bald' },
+      undefined,
+    ])('shows nothing for %o', (dueDateGroup) => {
+      expect(render('multipleChoice', dueDateGroup)).toHaveLength(0);
     });
   });
 
@@ -563,6 +628,7 @@ describe('CodeQuestion', () => {
       gradingSettings: {
         dueDateGroup: {
           enableDueDate: true,
+          duedate: '2026-12-24T11:00:00.000Z',
         },
       },
     }, 1);

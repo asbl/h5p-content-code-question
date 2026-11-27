@@ -1,5 +1,17 @@
 import { tCodeQuestion } from '../../services/codequestion-l10n';
 
+/**
+ * Indicates whether an authored deadline is a real date. The editor field
+ * starts at "01.01.1970", which authors keep when they enable the deadline
+ * without choosing a date. Treating it as a date would make every submission
+ * late.
+ * @param {string} [value] Stored deadline.
+ * @returns {boolean} True for a parseable date after 1970.
+ */
+export function isSetDueDate(value) {
+  return Boolean(value) && new Date(value).getFullYear() > 1970;
+}
+
 export default class DateHandler {
   constructor(dueDateString, l10n = {}) {
     this.dueDateString = dueDateString;
